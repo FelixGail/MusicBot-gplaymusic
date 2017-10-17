@@ -22,6 +22,11 @@ import com.github.felixgail.gplaymusic.api.GPlayMusic;
 import com.github.felixgail.gplaymusic.api.TokenProvider;
 import com.github.felixgail.gplaymusic.model.enums.StreamQuality;
 import com.github.felixgail.gplaymusic.model.shema.Track;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import svarzee.gps.gpsoauth.AuthToken;
 import svarzee.gps.gpsoauth.Gpsoauth;
 
@@ -53,7 +58,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
   private GPlayMusic api;
 
   private Song.Builder songBuilder;
-  private Map<String, Song> cachedSongs;
+  private LoadingCache<String, Song> cachedSongs;
 
   @Nonnull
   @Override
@@ -213,7 +218,16 @@ public class GPlaymusicProvider implements Loggable, Provider {
                          @Nonnull PlaybackFactoryManager manager) throws InitializationException {
     initStateWriter.state("Initializing...");
     playbackFactory = manager.getFactory(Mp3PlaybackFactory.class);
-    cachedSongs = new HashMap<>();
+    cachedSongs = CacheBuilder.newBuilder()
+        .expireAfterAccess(30, TimeUnit.MINUTES)
+        .initialCapacity(128)
+        .maximumSize(1024)
+        .build(new CacheLoader<String, Song>() {
+          @Override
+          public Song load(@Nonnull String key) throws Exception {
+            return getSongFromTrack(Track.getTrack(key));
+          }
+        });
 
     File songDir = new File(fileDir.getValue());
     if (!songDir.exists()) {
@@ -302,16 +316,10 @@ public class GPlaymusicProvider implements Loggable, Provider {
   @Nonnull
   @Override
   public Song lookup(@Nonnull String songId) throws NoSuchSongException {
-    if (cachedSongs.containsKey(songId)) {
+    try {
       return cachedSongs.get(songId);
-    } else {
-      try {
-        Song song = getSongFromTrack(Track.getTrack(songId));
-        cachedSongs.put(song.getId(), song);
-        return song;
-      } catch (IOException e) {
-        throw new NoSuchSongException(e);
-      }
+    } catch (ExecutionException e) {
+      throw new NoSuchSongException(e);
     }
   }
 
