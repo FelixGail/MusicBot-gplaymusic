@@ -252,7 +252,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
   private void loginToService(@Nonnull InitStateWriter initStateWriter) throws IOException, Gpsoauth.TokenRequestFailed {
     AuthToken authToken = null;
     boolean existingToken = false;
-    if (token.checkError() == null) {
+    if (token.getValue() != null && token.checkError() == null) {
       authToken = TokenProvider.provideToken(token.getValue());
       existingToken = true;
       initStateWriter.state("Trying to login with existing token.");
