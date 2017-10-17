@@ -87,7 +87,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
         new TextBox(),
         value -> {
           // check for valid value
-          if (value != null && !value.isEmpty()) {
+          if (!value.isEmpty()) {
             return null;
           } else {
             return "Value is required.";
@@ -104,7 +104,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
         new PasswordBox(),
         value -> {
           // check for valid value
-          if (value != null && !value.isEmpty()) {
+          if (!value.isEmpty()) {
             return null;
           } else {
             return "Value is required.";
@@ -121,7 +121,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
         new TextBox(),
         value -> {
           // check for valid value
-          if (value != null && !value.isEmpty()) {
+          if (!value.isEmpty()) {
             return null;
           } else {
             return "Value is required.";
@@ -137,15 +137,11 @@ public class GPlaymusicProvider implements Loggable, Provider {
         "songs/",
         new FileChooserButton(true),
         value -> {
-          if (value != null) {
-            File file = new File(value);
-            if (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.list().length == 0))) {
-              return null;
-            } else {
-              return "Value has to be an empty directory or not existing while having a parent directory.";
-            }
+          File file = new File(value);
+          if (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.list().length == 0))) {
+            return null;
           } else {
-            return "Value can not be null";
+            return "Value has to be an empty directory or not existing while having a parent directory.";
           }
         }
     );
@@ -161,14 +157,12 @@ public class GPlaymusicProvider implements Loggable, Provider {
             .collect(Collectors.toList()),
             DefaultStringConverter.INSTANCE, false),
         value -> {
-            try {
-              StreamQuality.valueOf(value);
-            }catch (IllegalArgumentException e) {
-              return "Value has to be LOW, MEDIUM or HIGH";
-            }catch (NullPointerException e) {
-              return "Value can not be null";
-            }
-            return null;
+          try {
+            StreamQuality.valueOf(value);
+          } catch (IllegalArgumentException e) {
+            return "Value has to be LOW, MEDIUM or HIGH";
+          }
+          return null;
         }
     );
 
@@ -181,7 +175,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
         new TextBox(),
         value -> {
           // check for valid value
-          if (value != null && !value.isEmpty()) {
+          if (!value.isEmpty()) {
             return null;
           } else {
             return "Value is required.";
@@ -310,7 +304,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
   public Song lookup(@Nonnull String songId) throws NoSuchSongException {
     if (cachedSongs.containsKey(songId)) {
       return cachedSongs.get(songId);
-    }else{
+    } else {
       try {
         Song song = getSongFromTrack(Track.getTrack(songId));
         cachedSongs.put(song.getId(), song);

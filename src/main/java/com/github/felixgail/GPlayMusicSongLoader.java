@@ -23,9 +23,11 @@ public class GPlayMusicSongLoader implements SongLoader {
   public boolean load(Song song) {
     try {
       Track track = Track.getTrack(song.getId());
-      Path path = Paths.get(songDir, song.getId()+".mp3");
-      if(!Files.exists(path)) {
-        track.download(quality, path);
+      Path path = Paths.get(songDir, song.getId() + ".mp3");
+      Path tmpPath = Paths.get(songDir, song.getId() + ".mp3.tmp");
+      if (!Files.exists(path)) {
+        track.download(quality, tmpPath);
+        Files.move(tmpPath, path);
       }
       return true;
     } catch (IOException e) {

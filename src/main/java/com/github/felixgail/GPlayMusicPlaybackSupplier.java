@@ -23,7 +23,7 @@ public class GPlayMusicPlaybackSupplier implements PlaybackSupplier {
   @Override
   public Playback supply(Song song) throws IOException {
     try {
-      return playbackFactory.createPlayback(new File(songDir, song.getId()+".mp3"));
+      return playbackFactory.createPlayback(new File(songDir, song.getId() + ".mp3"));
     } catch (UnsupportedAudioFileException e) {
       throw new IOException(e);
     }
