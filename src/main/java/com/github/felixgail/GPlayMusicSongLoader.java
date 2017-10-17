@@ -6,6 +6,7 @@ import com.github.felixgail.gplaymusic.model.enums.StreamQuality;
 import com.github.felixgail.gplaymusic.model.shema.Track;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -23,7 +24,9 @@ public class GPlayMusicSongLoader implements SongLoader {
     try {
       Track track = Track.getTrack(song.getId());
       Path path = Paths.get(songDir, song.getId()+".mp3");
-      track.download(quality, path);
+      if(!Files.exists(path)) {
+        track.download(quality, path);
+      }
       return true;
     } catch (IOException e) {
       return false;

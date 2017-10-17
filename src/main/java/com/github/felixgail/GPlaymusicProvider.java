@@ -310,8 +310,14 @@ public class GPlaymusicProvider implements Loggable, Provider {
   public Song lookup(@Nonnull String songId) throws NoSuchSongException {
     if (cachedSongs.containsKey(songId)) {
       return cachedSongs.get(songId);
-    } else {
-      throw new NoSuchSongException();
+    }else{
+      try {
+        Song song = getSongFromTrack(Track.getTrack(songId));
+        cachedSongs.put(song.getId(), song);
+        return song;
+      } catch (IOException e) {
+        throw new NoSuchSongException(e);
+      }
     }
   }
 
