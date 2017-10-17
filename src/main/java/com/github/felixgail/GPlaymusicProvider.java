@@ -6,7 +6,11 @@ import com.github.bjoernpetersen.jmusicbot.Loggable;
 import com.github.bjoernpetersen.jmusicbot.PlaybackFactoryManager;
 import com.github.bjoernpetersen.jmusicbot.Song;
 import com.github.bjoernpetersen.jmusicbot.config.Config;
+import com.github.bjoernpetersen.jmusicbot.config.ui.ChoiceBox;
+import com.github.bjoernpetersen.jmusicbot.config.ui.DefaultStringConverter;
 import com.github.bjoernpetersen.jmusicbot.config.ui.FileChooserButton;
+import com.github.bjoernpetersen.jmusicbot.config.ui.PasswordBox;
+import com.github.bjoernpetersen.jmusicbot.config.ui.StringChoice;
 import com.github.bjoernpetersen.jmusicbot.config.ui.TextBox;
 import com.github.bjoernpetersen.jmusicbot.platform.Platform;
 import com.github.bjoernpetersen.jmusicbot.platform.Support;
@@ -17,6 +21,7 @@ import com.github.bjoernpetersen.mp3Playback.Mp3PlaybackFactory;
 import com.github.felixgail.gplaymusic.api.GPlayMusic;
 import com.github.felixgail.gplaymusic.api.TokenProvider;
 import com.github.felixgail.gplaymusic.model.enums.StreamQuality;
+import com.github.felixgail.gplaymusic.model.shema.Track;
 import svarzee.gps.gpsoauth.AuthToken;
 import svarzee.gps.gpsoauth.Gpsoauth;
 
@@ -33,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class GPlaymusicProvider implements Loggable, Provider {
 
@@ -95,7 +101,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
         "Password/App password of your google account",
         true,
         null,
-        new TextBox(),
+        new PasswordBox(),
         value -> {
           // check for valid value
           if (value != null && !value.isEmpty()) {
@@ -144,6 +150,28 @@ public class GPlaymusicProvider implements Loggable, Provider {
         }
     );
 
+    streamQuality = config.new StringEntry(
+        getClass(),
+        "Quality",
+        "Sets the quality in which the songs are streamed",
+        false,
+        "HIGH",
+        new ChoiceBox<>(() -> Stream.of("LOW", "MEDIUM", "HIGH")
+            .map(s -> new StringChoice(s, s))
+            .collect(Collectors.toList()),
+            DefaultStringConverter.INSTANCE, false),
+        value -> {
+            try {
+              StreamQuality.valueOf(value);
+            }catch (IllegalArgumentException e) {
+              return "Value has to be LOW, MEDIUM or HIGH";
+            }catch (NullPointerException e) {
+              return "Value can not be null";
+            }
+            return null;
+        }
+    );
+
     token = config.new StringEntry(
         getClass(),
         "Token",
@@ -161,7 +189,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
         }
     );
 
-    configEntries = Arrays.asList(username, password, androidID, fileDir);
+    configEntries = Arrays.asList(username, password, androidID, fileDir, streamQuality);
     return configEntries;
   }
 
@@ -177,6 +205,8 @@ public class GPlaymusicProvider implements Loggable, Provider {
       stringEntry.destruct();
       stringEntry = null;
     });
+    token.destruct();
+    token = null;
   }
 
   @Override
@@ -199,7 +229,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
     }
 
     songBuilder = new Song.Builder()
-        .songLoader(new GPlayMusicSongLoader(StreamQuality.HIGH, fileDir.getValue()))
+        .songLoader(new GPlayMusicSongLoader(StreamQuality.valueOf(streamQuality.getValue()), fileDir.getValue()))
         .playbackSupplier(new GPlayMusicPlaybackSupplier(fileDir.getValue(), playbackFactory))
         .provider(this);
 
@@ -214,13 +244,14 @@ public class GPlaymusicProvider implements Loggable, Provider {
   private void loginToService(@Nonnull InitStateWriter initStateWriter) throws IOException, Gpsoauth.TokenRequestFailed {
     AuthToken authToken = null;
     boolean existingToken = false;
-    if (token.checkError() != null) {
+    if (token.checkError() == null) {
       authToken = TokenProvider.provideToken(token.getValue());
       existingToken = true;
       initStateWriter.state("Trying to login with existing token.");
     } else {
       initStateWriter.state("Fetching new token.");
       authToken = TokenProvider.provideToken(username.getValue(), password.getValue(), androidID.getValue());
+      token.set(authToken.getToken());
     }
     try {
       api = new GPlayMusic.Builder().setAuthToken(authToken).build();
@@ -252,25 +283,26 @@ public class GPlaymusicProvider implements Loggable, Provider {
   public List<Song> search(@Nonnull String query) {
     try {
       return api.searchTracks(query, 30).stream()
-          .map(track -> {
-            songBuilder.id(track.getID())
-                .title(track.getTitle())
-                .description(track.getArtist())
-                .duration(Integer.valueOf(track.getDurationMillis()) / 1000);
-            if (track.getAlbumArtRef().isPresent()) {
-              songBuilder.albumArtUrl(track.getAlbumArtRef().get().get(0).getUrl());
-            } else {
-              songBuilder.albumArtUrl(null);
-            }
-            Song song = songBuilder.build();
-            cachedSongs.put(song.getId(), song);
-            return song;
-          }).collect(Collectors.toList());
-
+          .map(this::getSongFromTrack)
+          .peek(song -> cachedSongs.put(song.getId(), song))
+          .collect(Collectors.toList());
     } catch (IOException e) {
       logWarning(e, "Exception while searching with query '%s'", query);
       return Collections.emptyList();
     }
+  }
+
+  private Song getSongFromTrack(Track track) {
+    songBuilder.id(track.getID())
+        .title(track.getTitle())
+        .description(track.getArtist())
+        .duration(Integer.valueOf(track.getDurationMillis()) / 1000);
+    if (track.getAlbumArtRef().isPresent()) {
+      songBuilder.albumArtUrl(track.getAlbumArtRef().get().get(0).getUrl());
+    } else {
+      songBuilder.albumArtUrl(null);
+    }
+    return songBuilder.build();
   }
 
   @Nonnull

@@ -22,3 +22,4 @@ into the plugins folder.
     _In Android 7 it can be found in Settings -> About Phone -> Status -> IMEI information. This should be similiar for other versions_
     4. **Song Directory:** The Plugin will temporarily save downloaded songs in this directory.
     On closure this directory will be deleted.
+    5. **Quality:** Sets the bitrate for the songs that will be streamed.
