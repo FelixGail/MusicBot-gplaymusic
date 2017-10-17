@@ -1,0 +1,32 @@
+version: 2
+jobs:
+  build:
+    docker:
+    - image: maven:3.5.0-jdk-8
+    working_directory: ~/app
+    steps:
+    - checkout
+
+    - restore_cache:
+        keys:
+        - v1-{{ checksum "pom.xml" }}
+        - v1-
+        paths:
+        - ~/.m2
+
+    - run:
+        name: Building Project
+        command: mvn clean package
+
+    - run:
+        name: Renaming and moving jar-file
+        command: |
+          mv target/musicbot-gplaymusic-*jar-with-dependencies.jar target/musicbot-gplaymusic.jar
+
+    - store-artifacts:
+        path: target/musicbot-gplaymusic.jar
+
+    - save_cache:
+            key: v1-{{ checksum "pom.xml" }}
+            paths:
+            - ~/.m2
