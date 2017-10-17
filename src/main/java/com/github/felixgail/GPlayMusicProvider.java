@@ -27,6 +27,9 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import svarzee.gps.gpsoauth.AuthToken;
 import svarzee.gps.gpsoauth.Gpsoauth;
 
@@ -38,14 +41,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class GPlaymusicProvider implements Loggable, Provider {
+public class GPlayMusicProvider implements Loggable, Provider {
 
   private Config.StringEntry username;
   private Config.StringEntry password;
@@ -53,6 +54,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
   private Config.StringEntry token;
   private Config.StringEntry fileDir;
   private Config.StringEntry streamQuality;
+  private Config.StringEntry cacheTime;
   private List<Config.StringEntry> configEntries;
   private Mp3PlaybackFactory playbackFactory;
   private GPlayMusic api;
@@ -63,7 +65,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
   @Nonnull
   @Override
   public Class<? extends Provider> getBaseClass() {
-    return GPlaymusicProvider.class;
+    return GPlayMusicProvider.class;
   }
 
   @Nonnull
@@ -171,6 +173,23 @@ public class GPlaymusicProvider implements Loggable, Provider {
         }
     );
 
+    cacheTime = config.new StringEntry(
+        getClass(),
+        "Cache Time",
+        "Duration in Minutes until cached songs will be deleted.",
+        false,
+        "60",
+        new TextBox(),
+        value -> {
+          try {
+            Integer.valueOf(value);
+          }catch (NumberFormatException e) {
+            return String.format("Value is either higher than %d or not a number", Integer.MAX_VALUE);
+          }
+          return null;
+        }
+    );
+
     token = config.new StringEntry(
         getClass(),
         "Token",
@@ -188,7 +207,8 @@ public class GPlaymusicProvider implements Loggable, Provider {
         }
     );
 
-    configEntries = Arrays.asList(username, password, androidID, fileDir, streamQuality);
+
+    configEntries = Arrays.asList(username, password, androidID, fileDir, streamQuality, cacheTime);
     return configEntries;
   }
 
@@ -218,11 +238,24 @@ public class GPlaymusicProvider implements Loggable, Provider {
                          @Nonnull PlaybackFactoryManager manager) throws InitializationException {
     initStateWriter.state("Initializing...");
     playbackFactory = manager.getFactory(Mp3PlaybackFactory.class);
-    cachedSongs = CacheBuilder.newBuilder()
-        .expireAfterAccess(30, TimeUnit.MINUTES)
+    RemovalListener<String, Song> removalListener = new RemovalListener<String, Song>() {
+      @Override
+      public void onRemoval(RemovalNotification<String, Song> removalNotification) {
+        Song song = removalNotification.getValue();
+        try {
+          logFine("Removing file %s (%s.mp3).", song.getTitle(), song.getId());
+          Files.deleteIfExists(Paths.get(fileDir.getValue(), song.getId() + ".mp3"));
+        } catch (IOException e) {
+          logWarning(e, "IOException while removing song '%s (%s)'", song.getTitle(), song.getId());
+        }
+      }
+    };
+    CacheBuilder<String, Song> cacheBuilder = CacheBuilder.newBuilder()
+        .expireAfterAccess(Integer.parseInt(cacheTime.getValue()), TimeUnit.MINUTES)
         .initialCapacity(128)
         .maximumSize(1024)
-        .build(new CacheLoader<String, Song>() {
+        .removalListener(removalListener);
+    cachedSongs = cacheBuilder.build(new CacheLoader<String, Song>() {
           @Override
           public Song load(@Nonnull String key) throws Exception {
             return getSongFromTrack(Track.getTrack(key));
