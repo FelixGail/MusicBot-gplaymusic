@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -61,6 +62,17 @@ public class GPlayMusicProvider implements Loggable, Provider {
 
   private Song.Builder songBuilder;
   private LoadingCache<String, Song> cachedSongs;
+
+  private Logger logger;
+
+  @Override
+  @Nonnull
+  public Logger getLogger() {
+    if(logger == null) {
+      logger = createLogger();
+    }
+    return logger;
+  }
 
   @Nonnull
   @Override
@@ -145,7 +157,8 @@ public class GPlayMusicProvider implements Loggable, Provider {
         new FileChooserButton(true),
         value -> {
           File file = new File(value);
-          if (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.list().length == 0))) {
+          if (file.exists() &&
+              (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.list().length == 0)))) {
             return null;
           } else {
             return "Value has to be an empty directory or not existing while having a parent directory.";
@@ -240,10 +253,10 @@ public class GPlayMusicProvider implements Loggable, Provider {
     playbackFactory = manager.getFactory(Mp3PlaybackFactory.class);
     RemovalListener<String, Song> removalListener = new RemovalListener<String, Song>() {
       @Override
-      public void onRemoval(RemovalNotification<String, Song> removalNotification) {
+      public void onRemoval(@Nonnull RemovalNotification<String, Song> removalNotification) {
         Song song = removalNotification.getValue();
         try {
-          logFine("Removing file %s (%s.mp3).", song.getTitle(), song.getId());
+          logFinest("Removing song with id '%s' from cache.", song.getId());
           Files.deleteIfExists(Paths.get(fileDir.getValue(), song.getId() + ".mp3"));
         } catch (IOException e) {
           logWarning(e, "IOException while removing song '%s (%s)'", song.getTitle(), song.getId());
@@ -252,12 +265,13 @@ public class GPlayMusicProvider implements Loggable, Provider {
     };
     CacheBuilder<String, Song> cacheBuilder = CacheBuilder.newBuilder()
         .expireAfterAccess(Integer.parseInt(cacheTime.getValue()), TimeUnit.MINUTES)
-        .initialCapacity(128)
-        .maximumSize(1024)
+        .initialCapacity(512)
+        .maximumSize(4096)
         .removalListener(removalListener);
     cachedSongs = cacheBuilder.build(new CacheLoader<String, Song>() {
           @Override
           public Song load(@Nonnull String key) throws Exception {
+            logFinest("Adding song with id '%s' to cache.", key);
             return getSongFromTrack(Track.getTrack(key));
           }
         });

@@ -23,3 +23,4 @@ into the plugins folder.
     4. **Song Directory:** The Plugin will temporarily save downloaded songs in this directory.
     On closure this directory will be deleted.
     5. **Quality:** Sets the bitrate for the songs that will be streamed.
+    6. **Cache Time:** Sets the time a song stays cached without access until it is deleted.
