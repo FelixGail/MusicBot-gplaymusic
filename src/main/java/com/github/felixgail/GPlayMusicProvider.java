@@ -195,7 +195,7 @@ public class GPlayMusicProvider implements Loggable, Provider {
         new TextBox(),
         value -> {
           try {
-            Integer.valueOf(value);
+            Integer.parseInt(value);
           }catch (NumberFormatException e) {
             return String.format("Value is either higher than %d or not a number", Integer.MAX_VALUE);
           }
@@ -251,22 +251,19 @@ public class GPlayMusicProvider implements Loggable, Provider {
                          @Nonnull PlaybackFactoryManager manager) throws InitializationException {
     initStateWriter.state("Initializing...");
     playbackFactory = manager.getFactory(Mp3PlaybackFactory.class);
-    RemovalListener<String, Song> removalListener = new RemovalListener<String, Song>() {
-      @Override
-      public void onRemoval(@Nonnull RemovalNotification<String, Song> removalNotification) {
-        Song song = removalNotification.getValue();
-        try {
-          logFinest("Removing song with id '%s' from cache.", song.getId());
-          Files.deleteIfExists(Paths.get(fileDir.getValue(), song.getId() + ".mp3"));
-        } catch (IOException e) {
-          logWarning(e, "IOException while removing song '%s (%s)'", song.getTitle(), song.getId());
-        }
+    RemovalListener<String, Song> removalListener = removalNotification -> {
+      Song song = removalNotification.getValue();
+      try {
+        logFinest("Removing song with id '%s' from cache.", song.getId());
+        Files.deleteIfExists(Paths.get(fileDir.getValue(), song.getId() + ".mp3"));
+      } catch (IOException e) {
+        logWarning(e, "IOException while removing song '%s (%s)'", song.getTitle(), song.getId());
       }
     };
     CacheBuilder<String, Song> cacheBuilder = CacheBuilder.newBuilder()
         .expireAfterAccess(Integer.parseInt(cacheTime.getValue()), TimeUnit.MINUTES)
-        .initialCapacity(512)
-        .maximumSize(4096)
+        .initialCapacity(256)
+        .maximumSize(1024)
         .removalListener(removalListener);
     cachedSongs = cacheBuilder.build(new CacheLoader<String, Song>() {
           @Override
