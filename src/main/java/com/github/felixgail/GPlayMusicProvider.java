@@ -22,6 +22,14 @@ import com.github.felixgail.gplaymusic.api.GPlayMusic;
 import com.github.felixgail.gplaymusic.api.TokenProvider;
 import com.github.felixgail.gplaymusic.model.enums.StreamQuality;
 import com.github.felixgail.gplaymusic.model.shema.Track;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import svarzee.gps.gpsoauth.AuthToken;
 import svarzee.gps.gpsoauth.Gpsoauth;
 
@@ -33,14 +41,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class GPlaymusicProvider implements Loggable, Provider {
+public class GPlayMusicProvider implements Loggable, Provider {
 
   private Config.StringEntry username;
   private Config.StringEntry password;
@@ -48,17 +55,29 @@ public class GPlaymusicProvider implements Loggable, Provider {
   private Config.StringEntry token;
   private Config.StringEntry fileDir;
   private Config.StringEntry streamQuality;
+  private Config.StringEntry cacheTime;
   private List<Config.StringEntry> configEntries;
   private Mp3PlaybackFactory playbackFactory;
   private GPlayMusic api;
 
   private Song.Builder songBuilder;
-  private Map<String, Song> cachedSongs;
+  private LoadingCache<String, Song> cachedSongs;
+
+  private Logger logger;
+
+  @Override
+  @Nonnull
+  public Logger getLogger() {
+    if(logger == null) {
+      logger = createLogger();
+    }
+    return logger;
+  }
 
   @Nonnull
   @Override
   public Class<? extends Provider> getBaseClass() {
-    return GPlaymusicProvider.class;
+    return GPlayMusicProvider.class;
   }
 
   @Nonnull
@@ -138,7 +157,8 @@ public class GPlaymusicProvider implements Loggable, Provider {
         new FileChooserButton(true),
         value -> {
           File file = new File(value);
-          if (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.list().length == 0))) {
+          if (file.exists() &&
+              (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.list().length == 0)))) {
             return null;
           } else {
             return "Value has to be an empty directory or not existing while having a parent directory.";
@@ -166,6 +186,23 @@ public class GPlaymusicProvider implements Loggable, Provider {
         }
     );
 
+    cacheTime = config.new StringEntry(
+        getClass(),
+        "Cache Time",
+        "Duration in Minutes until cached songs will be deleted.",
+        false,
+        "60",
+        new TextBox(),
+        value -> {
+          try {
+            Integer.parseInt(value);
+          }catch (NumberFormatException e) {
+            return String.format("Value is either higher than %d or not a number", Integer.MAX_VALUE);
+          }
+          return null;
+        }
+    );
+
     token = config.new StringEntry(
         getClass(),
         "Token",
@@ -183,7 +220,8 @@ public class GPlaymusicProvider implements Loggable, Provider {
         }
     );
 
-    configEntries = Arrays.asList(username, password, androidID, fileDir, streamQuality);
+
+    configEntries = Arrays.asList(username, password, androidID, fileDir, streamQuality, cacheTime);
     return configEntries;
   }
 
@@ -213,7 +251,27 @@ public class GPlaymusicProvider implements Loggable, Provider {
                          @Nonnull PlaybackFactoryManager manager) throws InitializationException {
     initStateWriter.state("Initializing...");
     playbackFactory = manager.getFactory(Mp3PlaybackFactory.class);
-    cachedSongs = new HashMap<>();
+    RemovalListener<String, Song> removalListener = removalNotification -> {
+      Song song = removalNotification.getValue();
+      try {
+        logFinest("Removing song with id '%s' from cache.", song.getId());
+        Files.deleteIfExists(Paths.get(fileDir.getValue(), song.getId() + ".mp3"));
+      } catch (IOException e) {
+        logWarning(e, "IOException while removing song '%s (%s)'", song.getTitle(), song.getId());
+      }
+    };
+    CacheBuilder<String, Song> cacheBuilder = CacheBuilder.newBuilder()
+        .expireAfterAccess(Integer.parseInt(cacheTime.getValue()), TimeUnit.MINUTES)
+        .initialCapacity(256)
+        .maximumSize(1024)
+        .removalListener(removalListener);
+    cachedSongs = cacheBuilder.build(new CacheLoader<String, Song>() {
+          @Override
+          public Song load(@Nonnull String key) throws Exception {
+            logFinest("Adding song with id '%s' to cache.", key);
+            return getSongFromTrack(Track.getTrack(key));
+          }
+        });
 
     File songDir = new File(fileDir.getValue());
     if (!songDir.exists()) {
@@ -238,7 +296,7 @@ public class GPlaymusicProvider implements Loggable, Provider {
   private void loginToService(@Nonnull InitStateWriter initStateWriter) throws IOException, Gpsoauth.TokenRequestFailed {
     AuthToken authToken = null;
     boolean existingToken = false;
-    if (token.checkError() == null) {
+    if (token.getValue() != null && token.checkError() == null) {
       authToken = TokenProvider.provideToken(token.getValue());
       existingToken = true;
       initStateWriter.state("Trying to login with existing token.");
@@ -302,16 +360,10 @@ public class GPlaymusicProvider implements Loggable, Provider {
   @Nonnull
   @Override
   public Song lookup(@Nonnull String songId) throws NoSuchSongException {
-    if (cachedSongs.containsKey(songId)) {
+    try {
       return cachedSongs.get(songId);
-    } else {
-      try {
-        Song song = getSongFromTrack(Track.getTrack(songId));
-        cachedSongs.put(song.getId(), song);
-        return song;
-      } catch (IOException e) {
-        throw new NoSuchSongException(e);
-      }
+    } catch (ExecutionException e) {
+      throw new NoSuchSongException(e);
     }
   }
 
