@@ -1,4 +1,4 @@
-package com.github.felixgail;
+package com.github.felixgail.musicbot.gplaymusic;
 
 import com.github.bjoernpetersen.jmusicbot.Song;
 import com.github.bjoernpetersen.jmusicbot.SongLoader;

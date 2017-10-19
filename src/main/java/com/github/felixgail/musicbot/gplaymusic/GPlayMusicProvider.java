@@ -1,8 +1,7 @@
-package com.github.felixgail;
+package com.github.felixgail.musicbot.gplaymusic;
 
 import com.github.bjoernpetersen.jmusicbot.InitStateWriter;
 import com.github.bjoernpetersen.jmusicbot.InitializationException;
-import com.github.bjoernpetersen.jmusicbot.Loggable;
 import com.github.bjoernpetersen.jmusicbot.PlaybackFactoryManager;
 import com.github.bjoernpetersen.jmusicbot.Song;
 import com.github.bjoernpetersen.jmusicbot.config.Config;
@@ -25,11 +24,7 @@ import com.github.felixgail.gplaymusic.model.shema.Track;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-
 import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
 import svarzee.gps.gpsoauth.AuthToken;
 import svarzee.gps.gpsoauth.Gpsoauth;
 
@@ -43,11 +38,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Logger;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class GPlayMusicProvider implements Loggable, Provider {
+public class GPlayMusicProvider extends GPlayMusicProviderBase {
 
   private Config.StringEntry username;
   private Config.StringEntry password;
@@ -63,21 +59,10 @@ public class GPlayMusicProvider implements Loggable, Provider {
   private Song.Builder songBuilder;
   private LoadingCache<String, Song> cachedSongs;
 
-  private Logger logger;
-
-  @Override
-  @Nonnull
-  public Logger getLogger() {
-    if(logger == null) {
-      logger = createLogger();
-    }
-    return logger;
-  }
-
   @Nonnull
   @Override
   public Class<? extends Provider> getBaseClass() {
-    return GPlayMusicProvider.class;
+    return GPlayMusicProviderBase.class;
   }
 
   @Nonnull
@@ -196,7 +181,7 @@ public class GPlayMusicProvider implements Loggable, Provider {
         value -> {
           try {
             Integer.parseInt(value);
-          }catch (NumberFormatException e) {
+          } catch (NumberFormatException e) {
             return String.format("Value is either higher than %d or not a number", Integer.MAX_VALUE);
           }
           return null;
@@ -247,8 +232,13 @@ public class GPlayMusicProvider implements Loggable, Provider {
   }
 
   @Override
-  public void initialize(@Nonnull InitStateWriter initStateWriter,
-                         @Nonnull PlaybackFactoryManager manager) throws InitializationException {
+  public GPlayMusic getAPI() {
+    return api;
+  }
+
+  @Override
+  public Song.Builder initializeChild(@Nonnull InitStateWriter initStateWriter,
+                                      @Nonnull PlaybackFactoryManager manager) throws InitializationException {
     initStateWriter.state("Initializing...");
     playbackFactory = manager.getFactory(Mp3PlaybackFactory.class);
     RemovalListener<String, Song> removalListener = removalNotification -> {
@@ -266,12 +256,12 @@ public class GPlayMusicProvider implements Loggable, Provider {
         .maximumSize(1024)
         .removalListener(removalListener);
     cachedSongs = cacheBuilder.build(new CacheLoader<String, Song>() {
-          @Override
-          public Song load(@Nonnull String key) throws Exception {
-            logFinest("Adding song with id '%s' to cache.", key);
-            return getSongFromTrack(Track.getTrack(key));
-          }
-        });
+      @Override
+      public Song load(@Nonnull String key) throws Exception {
+        logFinest("Adding song with id '%s' to cache.", key);
+        return getSongFromTrack(Track.getTrack(key));
+      }
+    });
 
     File songDir = new File(fileDir.getValue());
     if (!songDir.exists()) {
@@ -291,6 +281,7 @@ public class GPlayMusicProvider implements Loggable, Provider {
       initStateWriter.warning("Logging into GPlayMusic failed!");
       throw new InitializationException(e);
     }
+    return songBuilder;
   }
 
   private void loginToService(@Nonnull InitStateWriter initStateWriter) throws IOException, Gpsoauth.TokenRequestFailed {
@@ -344,18 +335,6 @@ public class GPlayMusicProvider implements Loggable, Provider {
     }
   }
 
-  private Song getSongFromTrack(Track track) {
-    songBuilder.id(track.getID())
-        .title(track.getTitle())
-        .description(track.getArtist())
-        .duration(Integer.valueOf(track.getDurationMillis()) / 1000);
-    if (track.getAlbumArtRef().isPresent()) {
-      songBuilder.albumArtUrl(track.getAlbumArtRef().get().get(0).getUrl());
-    } else {
-      songBuilder.albumArtUrl(null);
-    }
-    return songBuilder.build();
-  }
 
   @Nonnull
   @Override

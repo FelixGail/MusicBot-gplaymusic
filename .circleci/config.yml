@@ -21,7 +21,7 @@ jobs:
     - run:
         name: Renaming and moving jar-file
         command: |
-          mv target/musicbot-gplaymusic-*jar-with-dependencies.jar target/musicbot-gplaymusic.jar
+          mv target/*jar-with-dependencies.jar target/musicbot-gplaymusic.jar
 
     - store-artifacts:
         path: target/musicbot-gplaymusic.jar
