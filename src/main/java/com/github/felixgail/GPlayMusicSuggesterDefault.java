@@ -41,7 +41,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
     try {
       createStation(fallbackSong.getValue());
     } catch (IOException e) {
-      throw new InitializationException("Unable to create Station on song "+fallbackSong.getValue(), e);
+      throw new InitializationException("Unable to create Station on song " + fallbackSong.getValue(), e);
     }
   }
 
@@ -49,8 +49,9 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   @Override
   public Song suggestNext() {
     List<Song> suggestionList = getNextSuggestions(1);
-    lastSuggested = suggestionList.size()>0?suggestionList.get(0):
-        getProvider().getSongFromTrack(new Track(fallbackSong.getValue()));
+    lastSuggested = suggestionList.size() > 0 ? suggestionList.get(0) :
+        getProvider()
+            .getSongFromInfo(fallbackSong.getValue(), "Fallback Song", "Unknown", 0, null);
     return lastSuggested;
   }
 
@@ -58,7 +59,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   @Override
   public List<Song> getNextSuggestions(int i) {
     List<Song> songsToReturn = new LinkedList<>();
-    while (songsToReturn.size() < i){
+    while (songsToReturn.size() < i) {
       try {
         radioStation.getTracks(songsToTracks(recentlyPlayedSongs), true, true)
             .forEach(track -> handleRespondedTrack(songsToReturn, i, track));
@@ -70,8 +71,8 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
     return songsToReturn;
   }
 
-  private void handleRespondedTrack(Collection<Song> songs, int max, Track track){
-    if(songs.size() <= max) {
+  private void handleRespondedTrack(Collection<Song> songs, int max, Track track) {
+    if (songs.size() <= max) {
       Song song = getProvider().getSongFromTrack(track);
       handleRecentlyPlayed(song);
       songs.add(song);
@@ -95,7 +96,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
         "Tj6fhurtstzgdpvfm4xv6i5cei4",
         new TextBox(),
         value -> {
-          if(!value.startsWith("T")) {
+          if (!value.startsWith("T")) {
             fallbackSong.set("Tj6fhurtstzgdpvfm4xv6i5cei4");
           }
           return null;
@@ -113,7 +114,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   @Nonnull
   @Override
   public List<? extends Config.Entry> getMissingConfigEntries() {
-    if(fallbackSong.getValue() ==null || fallbackSong.checkError() != null) {
+    if (fallbackSong.getValue() == null || fallbackSong.checkError() != null) {
       return Collections.singletonList(fallbackSong);
     }
     return Collections.emptyList();
@@ -133,7 +134,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
 
   @Override
   public void close() throws IOException {
-    if(radioStation!=null){
+    if (radioStation != null) {
       radioStation.delete();
     }
   }
@@ -144,7 +145,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
     try {
       createStation(song.getId());
     } catch (IOException e) {
-        logWarning(e, "Error while creating station on key %s. Using old station.", song.getId());
+      logWarning(e, "Error while creating station on key %s. Using old station.", song.getId());
     }
   }
 
@@ -154,12 +155,12 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
     handleRecentlyPlayed(song);
   }
 
-  private void createStation(@Nonnull String songID) throws IOException{
-    if(lastSuggested==null || !songID.equals(lastSuggested.getId())){
+  private void createStation(@Nonnull String songID) throws IOException {
+    if (lastSuggested == null || !songID.equals(lastSuggested.getId())) {
       Station station = Station
-          .create(new StationSeed(Track.getTrack(songID)), "Station on "+songID, false);
+          .create(new StationSeed(Track.getTrack(songID)), "Station on " + songID, false);
       fallbackSong.set(songID);
-      if(radioStation !=null){
+      if (radioStation != null) {
         radioStation.delete();
       }
       radioStation = station;
@@ -167,10 +168,10 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   }
 
   private void handleRecentlyPlayed(Song song) {
-    if(recentlyPlayedSongs.size() >= recentlyPlayedMaxSize) {
+    if (recentlyPlayedSongs.size() >= recentlyPlayedMaxSize) {
       recentlyPlayedSongs.remove(0);
     }
-    if(recentlyPlayedSongs.stream().noneMatch(s -> s.getId().equals(song.getId()))){
+    if (recentlyPlayedSongs.stream().noneMatch(s -> s.getId().equals(song.getId()))) {
       recentlyPlayedSongs.add(song);
     }
   }

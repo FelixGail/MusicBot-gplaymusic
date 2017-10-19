@@ -12,14 +12,14 @@ import com.github.felixgail.gplaymusic.model.shema.Track;
 import javax.annotation.Nonnull;
 import java.util.logging.Logger;
 
-public abstract class GPlayMusicProviderBase implements Provider, Loggable{
+public abstract class GPlayMusicProviderBase implements Provider, Loggable {
   private Song.Builder songBuilder;
   private Logger logger;
 
   @Override
   @Nonnull
   public Logger getLogger() {
-    if(logger == null) {
+    if (logger == null) {
       logger = createLogger();
     }
     return logger;
@@ -29,7 +29,7 @@ public abstract class GPlayMusicProviderBase implements Provider, Loggable{
 
   @Override
   public final void initialize(@Nonnull InitStateWriter initStateWriter,
-                         @Nonnull PlaybackFactoryManager manager) throws InitializationException {
+                               @Nonnull PlaybackFactoryManager manager) throws InitializationException {
     this.songBuilder = initializeChild(initStateWriter, manager);
   }
 
@@ -38,16 +38,21 @@ public abstract class GPlayMusicProviderBase implements Provider, Loggable{
       throws InitializationException;
 
   public Song getSongFromTrack(Track track) {
-    songBuilder.id(track.getID())
-        .title(track.getTitle())
-        .description(track.getArtist())
-        .duration(Math.toIntExact(track.getDurationMillis() / 1000));
+    String albumArtUrl = null;
     if (track.getAlbumArtRef().isPresent()) {
-      songBuilder.albumArtUrl(track.getAlbumArtRef().get().get(0).getUrl());
-    } else {
-      songBuilder.albumArtUrl(null);
+      albumArtUrl = track.getAlbumArtRef().get().get(0).getUrl();
     }
-    return songBuilder.build();
+    return getSongFromInfo(track.getID(), track.getTitle(), track.getArtist(),
+        Math.toIntExact(track.getDurationMillis() / 1000), albumArtUrl);
+  }
+
+  public Song getSongFromInfo(@Nonnull String id, String title, String description, int duration, String albumArtUrl) {
+    return songBuilder.id(id)
+        .title(title)
+        .description(description)
+        .duration(duration)
+        .albumArtUrl(albumArtUrl)
+        .build();
   }
 
 }
