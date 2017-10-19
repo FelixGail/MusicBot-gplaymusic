@@ -17,16 +17,13 @@ import com.github.bjoernpetersen.jmusicbot.playback.PlaybackFactory;
 import com.github.bjoernpetersen.jmusicbot.provider.NoSuchSongException;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
 import com.github.bjoernpetersen.mp3Playback.Mp3PlaybackFactory;
-import com.github.felixgail.musicbot.gplaymusic.gplaymusic.api.GPlayMusic;
-import com.github.felixgail.musicbot.gplaymusic.gplaymusic.api.TokenProvider;
-import com.github.felixgail.musicbot.gplaymusic.gplaymusic.model.enums.StreamQuality;
-import com.github.felixgail.musicbot.gplaymusic.gplaymusic.model.shema.Track;
+import com.github.felixgail.gplaymusic.api.GPlayMusic;
+import com.github.felixgail.gplaymusic.api.TokenProvider;
+import com.github.felixgail.gplaymusic.model.enums.StreamQuality;
+import com.github.felixgail.gplaymusic.model.shema.Track;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-
 import com.google.common.cache.RemovalListener;
 import svarzee.gps.gpsoauth.AuthToken;
 import svarzee.gps.gpsoauth.Gpsoauth;
@@ -41,6 +38,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -182,7 +181,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
         value -> {
           try {
             Integer.parseInt(value);
-          }catch (NumberFormatException e) {
+          } catch (NumberFormatException e) {
             return String.format("Value is either higher than %d or not a number", Integer.MAX_VALUE);
           }
           return null;
@@ -239,7 +238,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
 
   @Override
   public Song.Builder initializeChild(@Nonnull InitStateWriter initStateWriter,
-                         @Nonnull PlaybackFactoryManager manager) throws InitializationException {
+                                      @Nonnull PlaybackFactoryManager manager) throws InitializationException {
     initStateWriter.state("Initializing...");
     playbackFactory = manager.getFactory(Mp3PlaybackFactory.class);
     RemovalListener<String, Song> removalListener = removalNotification -> {
@@ -257,12 +256,12 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
         .maximumSize(1024)
         .removalListener(removalListener);
     cachedSongs = cacheBuilder.build(new CacheLoader<String, Song>() {
-          @Override
-          public Song load(@Nonnull String key) throws Exception {
-            logFinest("Adding song with id '%s' to cache.", key);
-            return getSongFromTrack(Track.getTrack(key));
-          }
-        });
+      @Override
+      public Song load(@Nonnull String key) throws Exception {
+        logFinest("Adding song with id '%s' to cache.", key);
+        return getSongFromTrack(Track.getTrack(key));
+      }
+    });
 
     File songDir = new File(fileDir.getValue());
     if (!songDir.exists()) {
@@ -299,7 +298,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
     }
     try {
       api = new GPlayMusic.Builder().setAuthToken(authToken).build();
-    } catch (com.github.felixgail.musicbot.gplaymusic.gplaymusic.api.exceptions.InitializationException e) {
+    } catch (com.github.felixgail.gplaymusic.api.exceptions.InitializationException e) {
       if (existingToken) {
         token.set(null);
         loginToService(initStateWriter);

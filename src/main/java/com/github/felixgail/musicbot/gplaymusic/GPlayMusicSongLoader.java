@@ -2,8 +2,8 @@ package com.github.felixgail.musicbot.gplaymusic;
 
 import com.github.bjoernpetersen.jmusicbot.Song;
 import com.github.bjoernpetersen.jmusicbot.SongLoader;
-import com.github.felixgail.musicbot.gplaymusic.gplaymusic.model.enums.StreamQuality;
-import com.github.felixgail.musicbot.gplaymusic.gplaymusic.model.shema.Track;
+import com.github.felixgail.gplaymusic.model.enums.StreamQuality;
+import com.github.felixgail.gplaymusic.model.shema.Track;
 
 import java.io.IOException;
 import java.nio.file.Files;
