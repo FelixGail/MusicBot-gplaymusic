@@ -47,7 +47,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class GPlayMusicProvider implements Loggable, Provider {
+public class GPlayMusicProvider extends GPlayMusicProviderBase {
 
   private Config.StringEntry username;
   private Config.StringEntry password;
@@ -63,21 +63,10 @@ public class GPlayMusicProvider implements Loggable, Provider {
   private Song.Builder songBuilder;
   private LoadingCache<String, Song> cachedSongs;
 
-  private Logger logger;
-
-  @Override
-  @Nonnull
-  public Logger getLogger() {
-    if(logger == null) {
-      logger = createLogger();
-    }
-    return logger;
-  }
-
   @Nonnull
   @Override
   public Class<? extends Provider> getBaseClass() {
-    return GPlayMusicProvider.class;
+    return GPlayMusicProviderBase.class;
   }
 
   @Nonnull
@@ -247,7 +236,12 @@ public class GPlayMusicProvider implements Loggable, Provider {
   }
 
   @Override
-  public void initialize(@Nonnull InitStateWriter initStateWriter,
+  public GPlayMusic getAPI() {
+    return api;
+  }
+
+  @Override
+  public Song.Builder initializeChild(@Nonnull InitStateWriter initStateWriter,
                          @Nonnull PlaybackFactoryManager manager) throws InitializationException {
     initStateWriter.state("Initializing...");
     playbackFactory = manager.getFactory(Mp3PlaybackFactory.class);
@@ -291,6 +285,7 @@ public class GPlayMusicProvider implements Loggable, Provider {
       initStateWriter.warning("Logging into GPlayMusic failed!");
       throw new InitializationException(e);
     }
+    return songBuilder;
   }
 
   private void loginToService(@Nonnull InitStateWriter initStateWriter) throws IOException, Gpsoauth.TokenRequestFailed {
@@ -344,18 +339,6 @@ public class GPlayMusicProvider implements Loggable, Provider {
     }
   }
 
-  private Song getSongFromTrack(Track track) {
-    songBuilder.id(track.getID())
-        .title(track.getTitle())
-        .description(track.getArtist())
-        .duration(Integer.valueOf(track.getDurationMillis()) / 1000);
-    if (track.getAlbumArtRef().isPresent()) {
-      songBuilder.albumArtUrl(track.getAlbumArtRef().get().get(0).getUrl());
-    } else {
-      songBuilder.albumArtUrl(null);
-    }
-    return songBuilder.build();
-  }
 
   @Nonnull
   @Override
