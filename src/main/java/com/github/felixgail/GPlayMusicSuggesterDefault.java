@@ -133,6 +133,9 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
 
   @Override
   public void close() throws IOException {
+    if(radioStation!=null){
+      radioStation.delete();
+    }
   }
 
   @Override
