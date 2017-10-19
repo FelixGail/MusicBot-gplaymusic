@@ -57,6 +57,11 @@ public abstract class GPlayMusicSuggesterBase implements Suggester, Loggable {
   }
 
   public List<Track> songsToTracks(Collection<Song> songs) {
-    return songs.stream().map(song -> new Track(song.getId())).collect(Collectors.toList());
+    return songs.stream()
+        .map(song ->
+            //As the Track#getID is the only needed attribute, leave other parameters empty.
+            new Track(song.getId(), "", "", "", 0, 0,
+                0, 0, "", ""))
+        .collect(Collectors.toList());
   }
 }
