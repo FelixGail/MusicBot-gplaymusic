@@ -1,8 +1,7 @@
-package com.github.felixgail;
+package com.github.felixgail.musicbot.gplaymusic;
 
 import com.github.bjoernpetersen.jmusicbot.InitStateWriter;
 import com.github.bjoernpetersen.jmusicbot.InitializationException;
-import com.github.bjoernpetersen.jmusicbot.Loggable;
 import com.github.bjoernpetersen.jmusicbot.PlaybackFactoryManager;
 import com.github.bjoernpetersen.jmusicbot.Song;
 import com.github.bjoernpetersen.jmusicbot.config.Config;
@@ -18,10 +17,10 @@ import com.github.bjoernpetersen.jmusicbot.playback.PlaybackFactory;
 import com.github.bjoernpetersen.jmusicbot.provider.NoSuchSongException;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
 import com.github.bjoernpetersen.mp3Playback.Mp3PlaybackFactory;
-import com.github.felixgail.gplaymusic.api.GPlayMusic;
-import com.github.felixgail.gplaymusic.api.TokenProvider;
-import com.github.felixgail.gplaymusic.model.enums.StreamQuality;
-import com.github.felixgail.gplaymusic.model.shema.Track;
+import com.github.felixgail.musicbot.gplaymusic.gplaymusic.api.GPlayMusic;
+import com.github.felixgail.musicbot.gplaymusic.gplaymusic.api.TokenProvider;
+import com.github.felixgail.musicbot.gplaymusic.gplaymusic.model.enums.StreamQuality;
+import com.github.felixgail.musicbot.gplaymusic.gplaymusic.model.shema.Track;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -29,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
 import svarzee.gps.gpsoauth.AuthToken;
 import svarzee.gps.gpsoauth.Gpsoauth;
 
@@ -43,7 +41,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -302,7 +299,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
     }
     try {
       api = new GPlayMusic.Builder().setAuthToken(authToken).build();
-    } catch (com.github.felixgail.gplaymusic.api.exceptions.InitializationException e) {
+    } catch (com.github.felixgail.musicbot.gplaymusic.gplaymusic.api.exceptions.InitializationException e) {
       if (existingToken) {
         token.set(null);
         loginToService(initStateWriter);

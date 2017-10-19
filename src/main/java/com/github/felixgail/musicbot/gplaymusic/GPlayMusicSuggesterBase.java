@@ -1,4 +1,4 @@
-package com.github.felixgail;
+package com.github.felixgail.musicbot.gplaymusic;
 
 import com.github.bjoernpetersen.jmusicbot.InitStateWriter;
 import com.github.bjoernpetersen.jmusicbot.InitializationException;
@@ -7,7 +7,7 @@ import com.github.bjoernpetersen.jmusicbot.Song;
 import com.github.bjoernpetersen.jmusicbot.provider.DependencyMap;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
 import com.github.bjoernpetersen.jmusicbot.provider.Suggester;
-import com.github.felixgail.gplaymusic.model.shema.Track;
+import com.github.felixgail.musicbot.gplaymusic.gplaymusic.model.shema.Track;
 import com.google.common.collect.Sets;
 
 import javax.annotation.Nonnull;
