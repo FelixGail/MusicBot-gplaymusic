@@ -19,8 +19,10 @@ import com.github.bjoernpetersen.jmusicbot.provider.Provider;
 import com.github.bjoernpetersen.mp3Playback.Mp3PlaybackFactory;
 import com.github.felixgail.gplaymusic.api.GPlayMusic;
 import com.github.felixgail.gplaymusic.api.TokenProvider;
+import com.github.felixgail.gplaymusic.api.exceptions.NetworkException;
 import com.github.felixgail.gplaymusic.model.enums.StreamQuality;
 import com.github.felixgail.gplaymusic.model.shema.Track;
+import com.github.zafarkhaja.semver.Version;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -31,6 +33,7 @@ import svarzee.gps.gpsoauth.Gpsoauth;
 import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -45,6 +48,8 @@ import java.util.stream.Stream;
 
 public class GPlayMusicProvider extends GPlayMusicProviderBase {
 
+  private final static long tokenCooldownMillis = 60000;
+
   private Config.StringEntry username;
   private Config.StringEntry password;
   private Config.StringEntry androidID;
@@ -55,8 +60,8 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
   private List<Config.StringEntry> configEntries;
   private Mp3PlaybackFactory playbackFactory;
   private GPlayMusic api;
-
   private Song.Builder songBuilder;
+
   private LoadingCache<String, Song> cachedSongs;
 
   @Nonnull
@@ -142,8 +147,8 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
         new FileChooserButton(true),
         value -> {
           File file = new File(value);
-          if (file.exists() &&
-              (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.list().length == 0)))) {
+          if (file.getParentFile() != null &&
+              (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.listFiles().length == 0)))) {
             return null;
           } else {
             return "Value has to be an empty directory or not existing while having a parent directory.";
@@ -213,17 +218,26 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
   @Nonnull
   @Override
   public List<? extends Config.Entry> getMissingConfigEntries() {
-    return configEntries.stream().filter(entry -> entry.checkError() != null).collect(Collectors.toList());
+    return configEntries.stream().filter(Config.StringEntry::isNullOrError).collect(Collectors.toList());
   }
 
   @Override
   public void destructConfigEntries() {
-    configEntries.forEach(stringEntry -> {
-      stringEntry.destruct();
-      stringEntry = null;
-    });
+    username.destruct();
+    username = null;
+    password.destruct();
+    password = null;
+    androidID.destruct();
+    androidID = null;
+    fileDir.destruct();
+    fileDir = null;
+    streamQuality.destruct();
+    streamQuality = null;
+    cacheTime.destruct();
+    cacheTime = null;
     token.destruct();
     token = null;
+    configEntries = null;
   }
 
   @Override
@@ -244,24 +258,23 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
     RemovalListener<String, Song> removalListener = removalNotification -> {
       Song song = removalNotification.getValue();
       try {
-        logFinest("Removing song with id '%s' from cache.", song.getId());
+        logFine("Removing song with id '%s' from cache.", song.getId());
         Files.deleteIfExists(Paths.get(fileDir.getValue(), song.getId() + ".mp3"));
       } catch (IOException e) {
         logWarning(e, "IOException while removing song '%s (%s)'", song.getTitle(), song.getId());
       }
     };
-    CacheBuilder<String, Song> cacheBuilder = CacheBuilder.newBuilder()
+    cachedSongs = CacheBuilder.newBuilder()
         .expireAfterAccess(Integer.parseInt(cacheTime.getValue()), TimeUnit.MINUTES)
         .initialCapacity(256)
         .maximumSize(1024)
-        .removalListener(removalListener);
-    cachedSongs = cacheBuilder.build(new CacheLoader<String, Song>() {
-      @Override
-      public Song load(@Nonnull String key) throws Exception {
-        logFinest("Adding song with id '%s' to cache.", key);
-        return getSongFromTrack(Track.getTrack(key));
-      }
-    });
+        .build(new CacheLoader<String, Song>() {
+          @Override
+          public Song load(@Nonnull String key) throws Exception {
+            logFine("Adding song with id '%s' to cache.", key);
+            return getSongFromTrack(Track.getTrack(key));
+          }
+        });
 
     File songDir = new File(fileDir.getValue());
     if (!songDir.exists()) {
@@ -330,9 +343,16 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
           .peek(song -> cachedSongs.put(song.getId(), song))
           .collect(Collectors.toList());
     } catch (IOException e) {
-      logWarning(e, "Exception while searching with query '%s'", query);
-      return Collections.emptyList();
+      if (e instanceof NetworkException && ((NetworkException) e).getCode() == HttpURLConnection.HTTP_UNAUTHORIZED) {
+        if (generateNewToken()) {
+          return search(query);
+        }
+      } else {
+        logWarning(e, "Exception while searching with query '%s'", query);
+
+      }
     }
+    return Collections.emptyList();
   }
 
 
@@ -356,5 +376,27 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
   @Override
   public String getReadableName() {
     return "GPlayMusic Songs";
+  }
+
+  @Nonnull
+  @Override
+  public Version getMinSupportedVersion() {
+    return Version.forIntegers(0, 11, 0);
+  }
+
+  private Boolean generateNewToken() {
+    long diffLastRequest = System.currentTimeMillis() - TokenProvider.getLastTokenFetched();
+    if (diffLastRequest > tokenCooldownMillis) {
+      logInfo("Authorization expired. Requesting new token.");
+      try {
+        api.changeToken(TokenProvider.provideToken(username.getValue(), password.getValue(), androidID.getValue()));
+        return true;
+      } catch (Gpsoauth.TokenRequestFailed | IOException e) {
+        logSevere(e, "Exception while trying to generate new token. Unable to authenticate client.");
+      }
+    } else {
+      logInfo("Token request on cooldown. Please wait %d seconds.", diffLastRequest * 1000);
+    }
+    return false;
   }
 }
