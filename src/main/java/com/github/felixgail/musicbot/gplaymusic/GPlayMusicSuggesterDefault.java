@@ -10,9 +10,9 @@ import com.github.bjoernpetersen.jmusicbot.platform.Support;
 import com.github.bjoernpetersen.jmusicbot.playback.SongEntry;
 import com.github.bjoernpetersen.jmusicbot.provider.DependencyMap;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
-import com.github.felixgail.gplaymusic.model.shema.Station;
-import com.github.felixgail.gplaymusic.model.shema.Track;
-import com.github.felixgail.gplaymusic.model.shema.snippets.StationSeed;
+import com.github.felixgail.gplaymusic.model.Station;
+import com.github.felixgail.gplaymusic.model.Track;
+import com.github.felixgail.gplaymusic.model.snippets.StationSeed;
 import com.github.zafarkhaja.semver.Version;
 
 import javax.annotation.Nonnull;

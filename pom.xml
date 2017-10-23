@@ -45,7 +45,7 @@
         <dependency>
             <groupId>com.github.felixgail</groupId>
             <artifactId>gplaymusic</artifactId>
-            <version>0.1.2-SNAPSHOT</version>
+            <version>0.2.0</version>
             <scope>compile</scope>
         </dependency>
 

@@ -7,7 +7,7 @@ import com.github.bjoernpetersen.jmusicbot.PlaybackFactoryManager;
 import com.github.bjoernpetersen.jmusicbot.Song;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
 import com.github.felixgail.gplaymusic.api.GPlayMusic;
-import com.github.felixgail.gplaymusic.model.shema.Track;
+import com.github.felixgail.gplaymusic.model.Track;
 
 import javax.annotation.Nonnull;
 import java.util.logging.Logger;

@@ -18,10 +18,10 @@ import com.github.bjoernpetersen.jmusicbot.provider.NoSuchSongException;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
 import com.github.bjoernpetersen.mp3Playback.Mp3PlaybackFactory;
 import com.github.felixgail.gplaymusic.api.GPlayMusic;
-import com.github.felixgail.gplaymusic.api.TokenProvider;
-import com.github.felixgail.gplaymusic.api.exceptions.NetworkException;
+import com.github.felixgail.gplaymusic.exceptions.NetworkException;
+import com.github.felixgail.gplaymusic.model.Track;
 import com.github.felixgail.gplaymusic.model.enums.StreamQuality;
-import com.github.felixgail.gplaymusic.model.shema.Track;
+import com.github.felixgail.gplaymusic.util.TokenProvider;
 import com.github.zafarkhaja.semver.Version;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -311,7 +311,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
     }
     try {
       api = new GPlayMusic.Builder().setAuthToken(authToken).build();
-    } catch (com.github.felixgail.gplaymusic.api.exceptions.InitializationException e) {
+    } catch (com.github.felixgail.gplaymusic.exceptions.InitializationException e) {
       if (existingToken) {
         token.set(null);
         loginToService(initStateWriter);
