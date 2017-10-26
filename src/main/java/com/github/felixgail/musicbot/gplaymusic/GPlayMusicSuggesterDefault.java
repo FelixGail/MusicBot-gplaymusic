@@ -7,11 +7,13 @@ import com.github.bjoernpetersen.jmusicbot.config.Config;
 import com.github.bjoernpetersen.jmusicbot.config.ui.TextBox;
 import com.github.bjoernpetersen.jmusicbot.platform.Platform;
 import com.github.bjoernpetersen.jmusicbot.platform.Support;
+import com.github.bjoernpetersen.jmusicbot.playback.SongEntry;
 import com.github.bjoernpetersen.jmusicbot.provider.DependencyMap;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
-import com.github.felixgail.gplaymusic.model.shema.Station;
-import com.github.felixgail.gplaymusic.model.shema.Track;
-import com.github.felixgail.gplaymusic.model.shema.snippets.StationSeed;
+import com.github.felixgail.gplaymusic.model.Station;
+import com.github.felixgail.gplaymusic.model.Track;
+import com.github.felixgail.gplaymusic.model.snippets.StationSeed;
+import com.github.zafarkhaja.semver.Version;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -38,6 +40,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   public void initializeChild(@Nonnull InitStateWriter initStateWriter, @Nonnull DependencyMap<Provider> dependencyMap)
       throws InitializationException, InterruptedException {
     recentlyPlayedSongs = new LinkedList<>();
+    logWarning("Test");
     try {
       createStation(fallbackSong.getValue());
     } catch (IOException e) {
@@ -140,12 +143,14 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   }
 
   @Override
-  public void notifyPlayed(@Nonnull Song song) {
+  public void notifyPlayed(@Nonnull SongEntry entry) {
+    System.out.println("NOTIFY PLAYED:" + entry);
+    Song song = entry.getSong();
     handleRecentlyPlayed(song);
     try {
       createStation(song.getId());
     } catch (IOException e) {
-      logWarning(e, "Error while creating station on key %s. Using old station.", song.getId());
+      System.out.printf("Error while creating station on key %s. Using old station.\n%s", song.getId(), e);
     }
   }
 
@@ -174,5 +179,11 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
     if (recentlyPlayedSongs.stream().noneMatch(s -> s.getId().equals(song.getId()))) {
       recentlyPlayedSongs.add(song);
     }
+  }
+
+  @Nonnull
+  @Override
+  public Version getMinSupportedVersion() {
+    return Version.forIntegers(0, 12);
   }
 }
