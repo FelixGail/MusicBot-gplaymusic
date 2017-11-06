@@ -10,6 +10,7 @@ import com.github.bjoernpetersen.jmusicbot.platform.Support;
 import com.github.bjoernpetersen.jmusicbot.playback.SongEntry;
 import com.github.bjoernpetersen.jmusicbot.provider.DependencyMap;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
+import com.github.felixgail.gplaymusic.api.GPlayMusic;
 import com.github.felixgail.gplaymusic.model.Station;
 import com.github.felixgail.gplaymusic.model.Track;
 import com.github.felixgail.gplaymusic.model.snippets.StationSeed;
@@ -29,6 +30,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   private Station radioStation;
   private Song lastSuggested;
   private List<Song> recentlyPlayedSongs;
+  private List<Song> suggestions;
   private Config.StringEntry fallbackSong;
 
   @Override
@@ -40,7 +42,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   public void initializeChild(@Nonnull InitStateWriter initStateWriter, @Nonnull DependencyMap<Provider> dependencyMap)
       throws InitializationException, InterruptedException {
     recentlyPlayedSongs = new LinkedList<>();
-    logWarning("Test");
+    suggestions = new LinkedList<>();
     try {
       createStation(fallbackSong.getValue());
     } catch (IOException e) {
@@ -54,32 +56,24 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
     List<Song> suggestionList = getNextSuggestions(1);
     lastSuggested = suggestionList.size() > 0 ? suggestionList.get(0) :
         getProvider()
-            .getSongFromInfo(fallbackSong.getValue(), "Fallback Song", "Unknown", 0, null);
+            .getSongFromInfo(fallbackSong.getValue(), null, null, 0, null);
+    suggestions.remove(lastSuggested);
     return lastSuggested;
   }
 
   @Nonnull
   @Override
   public List<Song> getNextSuggestions(int i) {
-    List<Song> songsToReturn = new LinkedList<>();
-    while (songsToReturn.size() < i) {
+    while (suggestions.size() < i) {
       try {
         radioStation.getTracks(songsToTracks(recentlyPlayedSongs), true, true)
-            .forEach(track -> handleRespondedTrack(songsToReturn, i, track));
+            .forEach(track -> suggestions.add(getProvider().getSongFromTrack(track)));
 
       } catch (IOException e) {
         logSevere(e, "IOException while fetching for station songs");
       }
     }
-    return songsToReturn;
-  }
-
-  private void handleRespondedTrack(Collection<Song> songs, int max, Track track) {
-    if (songs.size() <= max) {
-      Song song = getProvider().getSongFromTrack(track);
-      handleRecentlyPlayed(song);
-      songs.add(song);
-    }
+    return suggestions.subList(0, i);
   }
 
   @Nonnull
@@ -144,7 +138,6 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
 
   @Override
   public void notifyPlayed(@Nonnull SongEntry entry) {
-    System.out.println("NOTIFY PLAYED:" + entry);
     Song song = entry.getSong();
     handleRecentlyPlayed(song);
     try {
@@ -162,8 +155,9 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
 
   private void createStation(@Nonnull String songID) throws IOException {
     if (lastSuggested == null || !songID.equals(lastSuggested.getId())) {
-      Station station = Station
-          .create(new StationSeed(Track.getTrack(songID)), "Station on " + songID, false);
+      GPlayMusic api = getProvider().getAPI();
+      Station station = api.getStationApi()
+          .create(new StationSeed(api.getTrackApi().getTrack(songID)), "Station on " + songID, false);
       fallbackSong.set(songID);
       if (radioStation != null) {
         radioStation.delete();
@@ -179,6 +173,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
     if (recentlyPlayedSongs.stream().noneMatch(s -> s.getId().equals(song.getId()))) {
       recentlyPlayedSongs.add(song);
     }
+    suggestions.remove(song);
   }
 
   @Nonnull

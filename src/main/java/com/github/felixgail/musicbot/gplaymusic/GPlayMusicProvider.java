@@ -272,7 +272,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
           @Override
           public Song load(@Nonnull String key) throws Exception {
             logFine("Adding song with id '%s' to cache.", key);
-            return getSongFromTrack(Track.getTrack(key));
+            return getSongFromTrack(getAPI().getTrackApi().getTrack(key));
           }
         });
 
@@ -284,7 +284,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
     }
 
     songBuilder = new Song.Builder()
-        .songLoader(new GPlayMusicSongLoader(StreamQuality.valueOf(streamQuality.getValue()), fileDir.getValue()))
+        .songLoader(new GPlayMusicSongLoader(StreamQuality.valueOf(streamQuality.getValue()), fileDir.getValue(), this))
         .playbackSupplier(new GPlayMusicPlaybackSupplier(fileDir.getValue(), playbackFactory))
         .provider(this);
 
@@ -338,7 +338,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
   @Override
   public List<Song> search(@Nonnull String query) {
     try {
-      return api.searchTracks(query, 30).stream()
+      return api.getTrackApi().search(query, 30).stream()
           .map(this::getSongFromTrack)
           .peek(song -> cachedSongs.put(song.getId(), song))
           .collect(Collectors.toList());
