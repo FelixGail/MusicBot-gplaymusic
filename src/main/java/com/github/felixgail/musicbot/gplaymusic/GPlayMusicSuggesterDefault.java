@@ -162,6 +162,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
       if (radioStation != null) {
         radioStation.delete();
       }
+      suggestions.clear();
       radioStation = station;
     }
   }
