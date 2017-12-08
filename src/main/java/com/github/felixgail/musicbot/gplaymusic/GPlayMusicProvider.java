@@ -146,7 +146,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
         "songs/",
         new FileChooserButton(true),
         value -> {
-          File file = new File(value);
+          File file = new File(value).getAbsoluteFile();
           if (file.getParentFile() != null &&
               (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.listFiles().length == 0)))) {
             return null;
