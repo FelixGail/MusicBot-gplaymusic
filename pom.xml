@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.github.felixgail</groupId>
     <artifactId>musicbot.gplaymusic</artifactId>
-    <version>0.2.1-SNAPSHOT</version>
+    <version>0.3-SNAPSHOT</version>
     <url>https://github.com/FelixGail/JMusicBot-gplaymusic</url>
     <name>${project.groupId}:${project.artifactId}</name>
     <licenses>
@@ -45,7 +45,7 @@
         <dependency>
             <groupId>com.github.felixgail</groupId>
             <artifactId>gplaymusic</artifactId>
-            <version>0.2.0</version>
+            <version>0.3.0</version>
             <scope>compile</scope>
         </dependency>
 

@@ -11,6 +11,7 @@ import com.github.felixgail.gplaymusic.model.Track;
 import com.google.common.collect.Sets;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -58,10 +59,14 @@ public abstract class GPlayMusicSuggesterBase implements Suggester, Loggable {
 
   public List<Track> songsToTracks(Collection<Song> songs) {
     return songs.stream()
-        .map(song ->
-            //As the Track#getID is the only needed attribute, leave other parameters empty.
-            new Track(song.getId(), "", "", "", 0, 0,
-                0, 0, "", ""))
+        .map(song -> {
+          try {
+            return getProvider().getAPI().getTrackApi().getTrack(song.getId());
+          } catch (IOException e) {
+            logWarning(e, "Error while fetching track.");
+            return null;
+          }
+        })
         .collect(Collectors.toList());
   }
 }

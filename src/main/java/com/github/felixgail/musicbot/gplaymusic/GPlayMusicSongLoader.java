@@ -13,8 +13,10 @@ import java.nio.file.Paths;
 public class GPlayMusicSongLoader implements SongLoader {
   private String songDir;
   private StreamQuality quality;
+  private GPlayMusicProviderBase provider;
 
-  GPlayMusicSongLoader(StreamQuality quality, String songDir) {
+  GPlayMusicSongLoader(StreamQuality quality, String songDir, GPlayMusicProviderBase provider) {
+    this.provider = provider;
     this.quality = quality;
     this.songDir = songDir;
   }
@@ -22,7 +24,7 @@ public class GPlayMusicSongLoader implements SongLoader {
   @Override
   public boolean load(Song song) {
     try {
-      Track track = Track.getTrack(song.getId());
+      Track track = provider.getAPI().getTrackApi().getTrack(song.getId());
       Path path = Paths.get(songDir, song.getId() + ".mp3");
       Path tmpPath = Paths.get(songDir, song.getId() + ".mp3.tmp");
       if (!Files.exists(path)) {
