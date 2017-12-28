@@ -7,7 +7,7 @@ release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
-musicbot-gplaymusic.iml
+musicbot.gplaymusic.iml
 .idea/
 
 # Avoid ignoring Maven wrapper jar file (.jar files are usually ignored)

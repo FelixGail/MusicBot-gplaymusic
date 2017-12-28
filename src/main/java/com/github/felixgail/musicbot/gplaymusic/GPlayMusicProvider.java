@@ -1,8 +1,7 @@
-package com.github.felixgail;
+package com.github.felixgail.musicbot.gplaymusic;
 
 import com.github.bjoernpetersen.jmusicbot.InitStateWriter;
 import com.github.bjoernpetersen.jmusicbot.InitializationException;
-import com.github.bjoernpetersen.jmusicbot.Loggable;
 import com.github.bjoernpetersen.jmusicbot.PlaybackFactoryManager;
 import com.github.bjoernpetersen.jmusicbot.Song;
 import com.github.bjoernpetersen.jmusicbot.config.Config;
@@ -15,27 +14,26 @@ import com.github.bjoernpetersen.jmusicbot.config.ui.TextBox;
 import com.github.bjoernpetersen.jmusicbot.platform.Platform;
 import com.github.bjoernpetersen.jmusicbot.platform.Support;
 import com.github.bjoernpetersen.jmusicbot.playback.PlaybackFactory;
+import com.github.bjoernpetersen.jmusicbot.playback.included.Mp3PlaybackFactory;
 import com.github.bjoernpetersen.jmusicbot.provider.NoSuchSongException;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
-import com.github.bjoernpetersen.mp3Playback.Mp3PlaybackFactory;
 import com.github.felixgail.gplaymusic.api.GPlayMusic;
-import com.github.felixgail.gplaymusic.api.TokenProvider;
+import com.github.felixgail.gplaymusic.exceptions.NetworkException;
+import com.github.felixgail.gplaymusic.model.Track;
 import com.github.felixgail.gplaymusic.model.enums.StreamQuality;
-import com.github.felixgail.gplaymusic.model.shema.Track;
+import com.github.felixgail.gplaymusic.util.TokenProvider;
+import com.github.zafarkhaja.semver.Version;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-
 import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
 import svarzee.gps.gpsoauth.AuthToken;
 import svarzee.gps.gpsoauth.Gpsoauth;
 
 import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -43,11 +41,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Logger;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class GPlayMusicProvider implements Loggable, Provider {
+public class GPlayMusicProvider extends GPlayMusicProviderBase {
+
+  private final static long tokenCooldownMillis = 60000;
 
   private Config.StringEntry username;
   private Config.StringEntry password;
@@ -59,25 +60,14 @@ public class GPlayMusicProvider implements Loggable, Provider {
   private List<Config.StringEntry> configEntries;
   private Mp3PlaybackFactory playbackFactory;
   private GPlayMusic api;
-
   private Song.Builder songBuilder;
+
   private LoadingCache<String, Song> cachedSongs;
-
-  private Logger logger;
-
-  @Override
-  @Nonnull
-  public Logger getLogger() {
-    if(logger == null) {
-      logger = createLogger();
-    }
-    return logger;
-  }
 
   @Nonnull
   @Override
   public Class<? extends Provider> getBaseClass() {
-    return GPlayMusicProvider.class;
+    return GPlayMusicProviderBase.class;
   }
 
   @Nonnull
@@ -156,9 +146,9 @@ public class GPlayMusicProvider implements Loggable, Provider {
         "songs/",
         new FileChooserButton(true),
         value -> {
-          File file = new File(value);
-          if (file.exists() &&
-              (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.list().length == 0)))) {
+          File file = new File(value).getAbsoluteFile();
+          if (file.getParentFile() != null &&
+              (file.getParentFile().exists() && (!file.exists() || (file.isDirectory() && file.listFiles().length == 0)))) {
             return null;
           } else {
             return "Value has to be an empty directory or not existing while having a parent directory.";
@@ -196,7 +186,7 @@ public class GPlayMusicProvider implements Loggable, Provider {
         value -> {
           try {
             Integer.parseInt(value);
-          }catch (NumberFormatException e) {
+          } catch (NumberFormatException e) {
             return String.format("Value is either higher than %d or not a number", Integer.MAX_VALUE);
           }
           return null;
@@ -228,17 +218,26 @@ public class GPlayMusicProvider implements Loggable, Provider {
   @Nonnull
   @Override
   public List<? extends Config.Entry> getMissingConfigEntries() {
-    return configEntries.stream().filter(entry -> entry.checkError() != null).collect(Collectors.toList());
+    return configEntries.stream().filter(Config.StringEntry::isNullOrError).collect(Collectors.toList());
   }
 
   @Override
   public void destructConfigEntries() {
-    configEntries.forEach(stringEntry -> {
-      stringEntry.destruct();
-      stringEntry = null;
-    });
+    username.destruct();
+    username = null;
+    password.destruct();
+    password = null;
+    androidID.destruct();
+    androidID = null;
+    fileDir.destruct();
+    fileDir = null;
+    streamQuality.destruct();
+    streamQuality = null;
+    cacheTime.destruct();
+    cacheTime = null;
     token.destruct();
     token = null;
+    configEntries = null;
   }
 
   @Override
@@ -247,29 +246,33 @@ public class GPlayMusicProvider implements Loggable, Provider {
   }
 
   @Override
-  public void initialize(@Nonnull InitStateWriter initStateWriter,
-                         @Nonnull PlaybackFactoryManager manager) throws InitializationException {
+  public GPlayMusic getAPI() {
+    return api;
+  }
+
+  @Override
+  public Song.Builder initializeChild(@Nonnull InitStateWriter initStateWriter,
+                                      @Nonnull PlaybackFactoryManager manager) throws InitializationException {
     initStateWriter.state("Initializing...");
     playbackFactory = manager.getFactory(Mp3PlaybackFactory.class);
     RemovalListener<String, Song> removalListener = removalNotification -> {
       Song song = removalNotification.getValue();
       try {
-        logFinest("Removing song with id '%s' from cache.", song.getId());
+        logFine("Removing song with id '%s' from cache.", song.getId());
         Files.deleteIfExists(Paths.get(fileDir.getValue(), song.getId() + ".mp3"));
       } catch (IOException e) {
         logWarning(e, "IOException while removing song '%s (%s)'", song.getTitle(), song.getId());
       }
     };
-    CacheBuilder<String, Song> cacheBuilder = CacheBuilder.newBuilder()
+    cachedSongs = CacheBuilder.newBuilder()
         .expireAfterAccess(Integer.parseInt(cacheTime.getValue()), TimeUnit.MINUTES)
         .initialCapacity(256)
         .maximumSize(1024)
-        .removalListener(removalListener);
-    cachedSongs = cacheBuilder.build(new CacheLoader<String, Song>() {
+        .build(new CacheLoader<String, Song>() {
           @Override
           public Song load(@Nonnull String key) throws Exception {
-            logFinest("Adding song with id '%s' to cache.", key);
-            return getSongFromTrack(Track.getTrack(key));
+            logFine("Adding song with id '%s' to cache.", key);
+            return getSongFromTrack(getAPI().getTrackApi().getTrack(key));
           }
         });
 
@@ -281,7 +284,7 @@ public class GPlayMusicProvider implements Loggable, Provider {
     }
 
     songBuilder = new Song.Builder()
-        .songLoader(new GPlayMusicSongLoader(StreamQuality.valueOf(streamQuality.getValue()), fileDir.getValue()))
+        .songLoader(new GPlayMusicSongLoader(StreamQuality.valueOf(streamQuality.getValue()), fileDir.getValue(), this))
         .playbackSupplier(new GPlayMusicPlaybackSupplier(fileDir.getValue(), playbackFactory))
         .provider(this);
 
@@ -291,6 +294,7 @@ public class GPlayMusicProvider implements Loggable, Provider {
       initStateWriter.warning("Logging into GPlayMusic failed!");
       throw new InitializationException(e);
     }
+    return songBuilder;
   }
 
   private void loginToService(@Nonnull InitStateWriter initStateWriter) throws IOException, Gpsoauth.TokenRequestFailed {
@@ -307,7 +311,7 @@ public class GPlayMusicProvider implements Loggable, Provider {
     }
     try {
       api = new GPlayMusic.Builder().setAuthToken(authToken).build();
-    } catch (com.github.felixgail.gplaymusic.api.exceptions.InitializationException e) {
+    } catch (com.github.felixgail.gplaymusic.exceptions.InitializationException e) {
       if (existingToken) {
         token.set(null);
         loginToService(initStateWriter);
@@ -323,39 +327,40 @@ public class GPlayMusicProvider implements Loggable, Provider {
     api = null;
     songBuilder = null;
     cachedSongs = null;
+    deleteDir(new File(fileDir.getValue()));
+  }
 
-    Files.walk(Paths.get(fileDir.getValue()))
-        .map(Path::toFile)
-        .sorted((o1, o2) -> -o1.compareTo(o2))
-        .forEach(File::delete);
+  private void deleteDir(File file) {
+    File[] contents = file.listFiles();
+    if (contents != null) {
+      for (File f : contents) {
+        deleteDir(f);
+      }
+    }
+    file.delete();
   }
 
   @Nonnull
   @Override
   public List<Song> search(@Nonnull String query) {
     try {
-      return api.searchTracks(query, 30).stream()
+      return api.getTrackApi().search(query, 30).stream()
           .map(this::getSongFromTrack)
           .peek(song -> cachedSongs.put(song.getId(), song))
           .collect(Collectors.toList());
     } catch (IOException e) {
-      logWarning(e, "Exception while searching with query '%s'", query);
-      return Collections.emptyList();
+      if (e instanceof NetworkException && ((NetworkException) e).getCode() == HttpURLConnection.HTTP_UNAUTHORIZED) {
+        if (generateNewToken()) {
+          return search(query);
+        }
+      } else {
+        logWarning(e, "Exception while searching with query '%s'", query);
+
+      }
     }
+    return Collections.emptyList();
   }
 
-  private Song getSongFromTrack(Track track) {
-    songBuilder.id(track.getID())
-        .title(track.getTitle())
-        .description(track.getArtist())
-        .duration(Integer.valueOf(track.getDurationMillis()) / 1000);
-    if (track.getAlbumArtRef().isPresent()) {
-      songBuilder.albumArtUrl(track.getAlbumArtRef().get().get(0).getUrl());
-    } else {
-      songBuilder.albumArtUrl(null);
-    }
-    return songBuilder.build();
-  }
 
   @Nonnull
   @Override
@@ -377,5 +382,27 @@ public class GPlayMusicProvider implements Loggable, Provider {
   @Override
   public String getReadableName() {
     return "GPlayMusic Songs";
+  }
+
+  @Nonnull
+  @Override
+  public Version getMinSupportedVersion() {
+    return Version.forIntegers(0, 11, 0);
+  }
+
+  private Boolean generateNewToken() {
+    long diffLastRequest = System.currentTimeMillis() - TokenProvider.getLastTokenFetched();
+    if (diffLastRequest > tokenCooldownMillis) {
+      logInfo("Authorization expired. Requesting new token.");
+      try {
+        api.changeToken(TokenProvider.provideToken(username.getValue(), password.getValue(), androidID.getValue()));
+        return true;
+      } catch (Gpsoauth.TokenRequestFailed | IOException e) {
+        logSevere(e, "Exception while trying to generate new token. Unable to authenticate client.");
+      }
+    } else {
+      logInfo("Token request on cooldown. Please wait %d seconds.", diffLastRequest * 1000);
+    }
+    return false;
   }
 }

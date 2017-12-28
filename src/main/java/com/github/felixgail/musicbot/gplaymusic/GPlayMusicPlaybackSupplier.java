@@ -1,9 +1,9 @@
-package com.github.felixgail;
+package com.github.felixgail.musicbot.gplaymusic;
 
 import com.github.bjoernpetersen.jmusicbot.PlaybackSupplier;
 import com.github.bjoernpetersen.jmusicbot.Song;
 import com.github.bjoernpetersen.jmusicbot.playback.Playback;
-import com.github.bjoernpetersen.mp3Playback.Mp3PlaybackFactory;
+import com.github.bjoernpetersen.jmusicbot.playback.included.Mp3PlaybackFactory;
 
 import javax.annotation.Nonnull;
 import javax.sound.sampled.UnsupportedAudioFileException;
