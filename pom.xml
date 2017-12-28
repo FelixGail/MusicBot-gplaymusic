@@ -19,7 +19,7 @@
 
         <java.version>1.8</java.version>
         <junit.version>4.12</junit.version>
-        <musicbot.version>0.12.0</musicbot.version>
+        <musicbot.version>0.14.3</musicbot.version>
     </properties>
     <dependencies>
         <dependency>
@@ -33,14 +33,6 @@
             <artifactId>musicbot</artifactId>
             <version>${musicbot.version}</version>
             <scope>provided</scope>
-        </dependency>
-
-        <!-- just for example purposes -->
-        <dependency>
-            <groupId>com.github.bjoernpetersen</groupId>
-            <artifactId>musicbot-mp3Playback</artifactId>
-            <version>0.10.0</version>
-            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.github.felixgail</groupId>
