@@ -327,11 +327,17 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
     api = null;
     songBuilder = null;
     cachedSongs = null;
+    deleteDir(new File(fileDir.getValue()));
+  }
 
-    Files.walk(Paths.get(fileDir.getValue()))
-        .map(Path::toFile)
-        .sorted((o1, o2) -> -o1.compareTo(o2))
-        .forEach(File::delete);
+  private void deleteDir(File file) {
+    File[] contents = file.listFiles();
+    if (contents != null) {
+      for (File f : contents) {
+        deleteDir(f);
+      }
+    }
+    file.delete();
   }
 
   @Nonnull
