@@ -12,13 +12,11 @@ import com.github.bjoernpetersen.jmusicbot.provider.DependencyMap;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
 import com.github.felixgail.gplaymusic.api.GPlayMusic;
 import com.github.felixgail.gplaymusic.model.Station;
-import com.github.felixgail.gplaymusic.model.Track;
 import com.github.felixgail.gplaymusic.model.snippets.StationSeed;
 import com.github.zafarkhaja.semver.Version;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
