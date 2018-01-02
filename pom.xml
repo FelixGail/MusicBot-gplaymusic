@@ -20,6 +20,7 @@
         <java.version>1.8</java.version>
         <junit.version>4.12</junit.version>
         <musicbot.version>0.14.3</musicbot.version>
+        <gplaymusic.version>0.3.0</gplaymusic.version>
     </properties>
     <dependencies>
         <dependency>
@@ -37,7 +38,7 @@
         <dependency>
             <groupId>com.github.felixgail</groupId>
             <artifactId>gplaymusic</artifactId>
-            <version>0.3.0</version>
+            <version>${gplaymusic.version}</version>
             <scope>compile</scope>
         </dependency>
 

@@ -8,6 +8,7 @@ import com.github.bjoernpetersen.jmusicbot.Song;
 import com.github.bjoernpetersen.jmusicbot.provider.Provider;
 import com.github.felixgail.gplaymusic.api.GPlayMusic;
 import com.github.felixgail.gplaymusic.model.Track;
+import com.github.zafarkhaja.semver.Version;
 
 import javax.annotation.Nonnull;
 import java.util.logging.Logger;
@@ -55,4 +56,9 @@ public abstract class GPlayMusicProviderBase implements Provider, Loggable {
         .build();
   }
 
+  @Nonnull
+  @Override
+  public Version getMinSupportedVersion() {
+    return Version.forIntegers(0, 14);
+  }
 }
