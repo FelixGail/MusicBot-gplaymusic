@@ -1,5 +1,5 @@
 # JMusicBot-gplaymusic
-A GooglePlayMusic provider for the JMusicBot (https://github.com/BjoernPetersen/JMusicBot)
+A GooglePlayMusic provider for the MusicBot (https://github.com/BjoernPetersen/MusicBot)
 
 #### Requirements
 In order to be able to use this plugin, you will need an active AllAccess subscription to Google's 
@@ -13,7 +13,7 @@ You can find the latest successful build of this plugin
 
 #### Installation
 1. Install a version of the JMusicBot as well as an Mp3PlaybackFactory
-(e.g. [JMusicBot-javafxPlayback](https://github.com/BjoernPetersen/JMusicBot-javafxPlayback))
+(e.g. [MusicBot-mpv](https://github.com/BjoernPetersen/MusicBot-mpv))
 2. Copy this [project](https://FelixGail.github.io/CircleCIArtifactProvider/index.html?vcs-type=github&user=FelixGail&project=JMusicBot-gplaymusic&build=latest&token=052163ee37b6ca7653f730659f5980b8ad271138&branch=master&filter=successful&path=root/app/target/musicbot-gplaymusic.jar)
 into the plugins folder.
 3. Start the MusicBot and configure this plugin:

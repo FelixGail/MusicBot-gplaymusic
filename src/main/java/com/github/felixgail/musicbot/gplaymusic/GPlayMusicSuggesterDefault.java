@@ -1,50 +1,48 @@
 package com.github.felixgail.musicbot.gplaymusic;
 
-import com.github.bjoernpetersen.jmusicbot.InitStateWriter;
-import com.github.bjoernpetersen.jmusicbot.InitializationException;
-import com.github.bjoernpetersen.jmusicbot.Song;
-import com.github.bjoernpetersen.jmusicbot.config.Config;
-import com.github.bjoernpetersen.jmusicbot.config.ui.TextBox;
-import com.github.bjoernpetersen.jmusicbot.platform.Platform;
-import com.github.bjoernpetersen.jmusicbot.platform.Support;
-import com.github.bjoernpetersen.jmusicbot.playback.SongEntry;
-import com.github.bjoernpetersen.jmusicbot.provider.DependencyMap;
-import com.github.bjoernpetersen.jmusicbot.provider.Provider;
 import com.github.felixgail.gplaymusic.api.GPlayMusic;
 import com.github.felixgail.gplaymusic.model.Station;
 import com.github.felixgail.gplaymusic.model.snippets.StationSeed;
-import com.github.zafarkhaja.semver.Version;
-
-import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
+import javax.annotation.Nonnull;
+import net.bjoernpetersen.musicbot.api.config.Config;
+import net.bjoernpetersen.musicbot.api.config.TextBox;
+import net.bjoernpetersen.musicbot.api.player.Song;
+import net.bjoernpetersen.musicbot.api.player.SongEntry;
+import net.bjoernpetersen.musicbot.spi.plugin.InitializationException;
+import net.bjoernpetersen.musicbot.spi.plugin.NoSuchSongException;
+import net.bjoernpetersen.musicbot.spi.plugin.Suggester;
+import net.bjoernpetersen.musicbot.spi.plugin.management.InitStateWriter;
 
 public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
+
   private final static int recentlyPlayedMaxSize = 200;
 
   private Station radioStation;
   private Song lastSuggested;
   private List<Song> recentlyPlayedSongs;
   private List<Song> suggestions;
-  private Config.StringEntry fallbackSong;
+  private Config.StringEntry fallbackSongEntry;
+  private Song fallbackSong;
 
   @Override
-  public Set<Class<? extends Provider>> getChildDependencies() {
-    return Collections.emptySet();
-  }
-
-  @Override
-  public void initializeChild(@Nonnull InitStateWriter initStateWriter, @Nonnull DependencyMap<Provider> dependencyMap)
-      throws InitializationException, InterruptedException {
+  public void initialize(@Nonnull InitStateWriter initStateWriter) throws InitializationException {
     recentlyPlayedSongs = new LinkedList<>();
     suggestions = new LinkedList<>();
+
     try {
-      createStation(fallbackSong.getValue());
+      fallbackSong = getProvider().lookup(fallbackSongEntry.get());
+    } catch (NoSuchSongException e) {
+      throw new InitializationException("Could not find fallback song", e);
+    }
+
+    try {
+      createStation(fallbackSong);
     } catch (IOException e) {
-      throw new InitializationException("Unable to create Station on song " + fallbackSong.getValue(), e);
+      throw new InitializationException("Unable to create Station on song " + fallbackSong, e);
     }
   }
 
@@ -52,9 +50,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   @Override
   public Song suggestNext() {
     List<Song> suggestionList = getNextSuggestions(1);
-    lastSuggested = suggestionList.size() > 0 ? suggestionList.get(0) :
-        getProvider()
-            .getSongFromInfo(fallbackSong.getValue(), null, null, 0, null);
+    lastSuggested = suggestionList.size() > 0 ? suggestionList.get(0) : fallbackSong;
     suggestions.remove(lastSuggested);
     return lastSuggested;
   }
@@ -68,63 +64,61 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
             .forEach(track -> suggestions.add(getProvider().getSongFromTrack(track)));
 
       } catch (IOException e) {
-        logSevere(e, "IOException while fetching for station songs");
+        logger.error("IOException while fetching for station songs", e);
       }
     }
     return suggestions.subList(0, i);
   }
 
-  @Nonnull
   @Override
-  public String getId() {
-    return "gplaymusicdefaultuggester";
+  public void createStateEntries(@Nonnull Config config) {
   }
 
   @Nonnull
   @Override
-  public List<? extends Config.Entry> initializeConfigEntries(@Nonnull Config config) {
-    fallbackSong = config.new StringEntry(
-        getClass(),
+  public List<Config.Entry<?>> createConfigEntries(@Nonnull Config config) {
+    fallbackSongEntry = config.new StringEntry(
         "Fallback",
         "ID of a song to build the radio upon",
-        false,
-        "Tj6fhurtstzgdpvfm4xv6i5cei4",
-        new TextBox(),
         value -> {
           if (!value.startsWith("T")) {
-            fallbackSong.set("Tj6fhurtstzgdpvfm4xv6i5cei4");
+            return "Song IDs must start with 'T'";
           }
           return null;
-        }
+        },
+        TextBox.INSTANCE,
+        "Tj6fhurtstzgdpvfm4xv6i5cei4"
     );
-    return Collections.singletonList(fallbackSong);
-  }
 
-  @Override
-  public void destructConfigEntries() {
-    fallbackSong.destruct();
-    fallbackSong = null;
+    return Collections.singletonList(fallbackSongEntry);
   }
 
   @Nonnull
   @Override
-  public List<? extends Config.Entry> getMissingConfigEntries() {
-    if (fallbackSong.getValue() == null || fallbackSong.checkError() != null) {
-      return Collections.singletonList(fallbackSong);
-    }
+  public List<Config.Entry<?>> createSecretEntries(@Nonnull Config config) {
     return Collections.emptyList();
   }
 
   @Nonnull
   @Override
-  public String getReadableName() {
+  public String getName() {
     return "GPlayMusic DefaultSuggester";
   }
 
   @Nonnull
   @Override
-  public Support getSupport(@Nonnull Platform platform) {
-    return Support.YES;
+  public String getDescription() {
+    return "Suggest songs from a GPlayMusic station based on the last played song.";
+  }
+
+  @Nonnull
+  @Override
+  public String getSubject() {
+    if (fallbackSong == null) {
+      return getName();
+    } else {
+      return "Based on " + fallbackSong.getTitle();
+    }
   }
 
   @Override
@@ -139,9 +133,11 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
     Song song = entry.getSong();
     handleRecentlyPlayed(song);
     try {
-      createStation(song.getId());
+      createStation(song);
     } catch (IOException e) {
-      System.out.printf("Error while creating station on key %s. Using old station.\n%s", song.getId(), e);
+      System.out
+          .printf("Error while creating station on key %s. Using old station.\n%s", song.getId(),
+              e);
     }
   }
 
@@ -151,12 +147,21 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
     handleRecentlyPlayed(song);
   }
 
-  private void createStation(@Nonnull String songID) throws IOException {
-    if (lastSuggested == null || !songID.equals(lastSuggested.getId())) {
+  @Override
+  public void dislike(@Nonnull Song song) {
+    Suggester.DefaultImpls.dislike(this, song);
+  }
+
+  private void createStation(@Nonnull Song song) throws IOException {
+    if (lastSuggested == null || !song.getId().equals(lastSuggested.getId())) {
       GPlayMusic api = getProvider().getAPI();
       Station station = api.getStationApi()
-          .create(new StationSeed(api.getTrackApi().getTrack(songID)), "Station on " + songID, false);
-      fallbackSong.set(songID);
+          .create(new StationSeed(
+                  api.getTrackApi().getTrack(song.getId())),
+              "Station on " + song.getTitle(),
+              false);
+      fallbackSongEntry.set(song.getId());
+      fallbackSong = song;
       if (radioStation != null) {
         radioStation.delete();
       }
@@ -173,11 +178,5 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
       recentlyPlayedSongs.add(song);
     }
     suggestions.remove(song);
-  }
-
-  @Nonnull
-  @Override
-  public Version getMinSupportedVersion() {
-    return Version.forIntegers(0, 12);
   }
 }
