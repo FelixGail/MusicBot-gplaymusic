@@ -222,18 +222,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
   }
 
   @Override
-  public void close() throws IOException {
-    deleteDir(fileDir.get());
-  }
-
-  private void deleteDir(File file) {
-    File[] contents = file.listFiles();
-    if (contents != null) {
-      for (File f : contents) {
-        deleteDir(f);
-      }
-    }
-    file.delete();
+  public void close() {
   }
 
   @Nonnull
