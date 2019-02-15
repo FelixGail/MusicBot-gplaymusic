@@ -26,7 +26,8 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   private List<Song> recentlyPlayedSongs;
   private List<Song> suggestions;
   private Config.StringEntry fallbackSongEntry;
-  private Song fallbackSong;
+  private Config.StringEntry baseSongEntry;
+  private Song baseSong;
 
   @Override
   public void initialize(@Nonnull InitStateWriter initStateWriter) throws InitializationException {
@@ -34,15 +35,21 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
     suggestions = new LinkedList<>();
 
     try {
-      fallbackSong = getProvider().lookup(fallbackSongEntry.get());
+      String songId;
+      if (baseSongEntry.get() != null) {
+        songId = baseSongEntry.get();
+      } else {
+        songId = fallbackSongEntry.get();
+      }
+      baseSong = getProvider().lookup(songId);
     } catch (NoSuchSongException e) {
       throw new InitializationException("Could not find fallback song", e);
     }
 
     try {
-      createStation(fallbackSong);
+      createStation(baseSong);
     } catch (IOException e) {
-      throw new InitializationException("Unable to create Station on song " + fallbackSong, e);
+      throw new InitializationException("Unable to create Station on song " + baseSong, e);
     }
   }
 
@@ -50,7 +57,7 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   @Override
   public Song suggestNext() {
     List<Song> suggestionList = getNextSuggestions(1);
-    lastSuggested = suggestionList.size() > 0 ? suggestionList.get(0) : fallbackSong;
+    lastSuggested = suggestionList.size() > 0 ? suggestionList.get(0) : baseSong;
     suggestions.remove(lastSuggested);
     return lastSuggested;
   }
@@ -72,6 +79,10 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
 
   @Override
   public void createStateEntries(@Nonnull Config config) {
+    baseSongEntry = config.new StringEntry(
+        "Base",
+        "",
+        value -> null);
   }
 
   @Nonnull
@@ -114,10 +125,10 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
   @Nonnull
   @Override
   public String getSubject() {
-    if (fallbackSong == null) {
+    if (baseSong == null) {
       return getName();
     } else {
-      return "Based on " + fallbackSong.getTitle();
+      return "Based on " + baseSong.getTitle();
     }
   }
 
@@ -160,8 +171,8 @@ public class GPlayMusicSuggesterDefault extends GPlayMusicSuggesterBase {
                   api.getTrackApi().getTrack(song.getId())),
               "Station on " + song.getTitle(),
               false);
-      fallbackSongEntry.set(song.getId());
-      fallbackSong = song;
+      baseSongEntry.set(song.getId());
+      baseSong = song;
       if (radioStation != null) {
         radioStation.delete();
       }
