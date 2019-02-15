@@ -25,7 +25,6 @@ import javax.annotation.Nonnull;
 import javax.inject.Inject;
 import net.bjoernpetersen.musicbot.api.config.ChoiceBox;
 import net.bjoernpetersen.musicbot.api.config.Config;
-import net.bjoernpetersen.musicbot.api.config.FileChooser;
 import net.bjoernpetersen.musicbot.api.config.IntSerializer;
 import net.bjoernpetersen.musicbot.api.config.NonnullConfigChecker;
 import net.bjoernpetersen.musicbot.api.config.NumberBox;
@@ -41,6 +40,7 @@ import net.bjoernpetersen.musicbot.spi.plugin.Playback;
 import net.bjoernpetersen.musicbot.spi.plugin.management.InitStateWriter;
 import net.bjoernpetersen.musicbot.spi.plugin.predefined.Mp3PlaybackFactory;
 import net.bjoernpetersen.musicbot.spi.plugin.predefined.UnsupportedAudioFileException;
+import net.bjoernpetersen.musicbot.spi.util.FileStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import svarzee.gps.gpsoauth.AuthToken;
@@ -56,9 +56,11 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
   private Config.StringEntry password;
   private Config.StringEntry androidID;
   private Config.StringEntry token;
-  private Config.SerializedEntry<File> fileDir;
   private Config.SerializedEntry<StreamQuality> streamQuality;
   private Config.SerializedEntry<Integer> cacheTime;
+  @Inject
+  private FileStorage fileStorage;
+  private File fileDir;
   @Inject
   private Mp3PlaybackFactory playbackFactory;
   private GPlayMusic api;
@@ -91,24 +93,6 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
         TextBox.INSTANCE
     );
 
-    fileDir = config.new SerializedEntry<>(
-        "Song Directory",
-        "Directory in which songs will be temporarily saved.",
-        new DirectoryConfigSerializer(),
-        value -> {
-          File file = value.getAbsoluteFile();
-          if (file.getParentFile() != null &&
-              (file.getParentFile().exists() && (!file.exists() || (file.isDirectory()
-                  && file.listFiles().length == 0)))) {
-            return null;
-          } else {
-            return "Value has to be an empty directory or not existing while having a parent directory.";
-          }
-        },
-        new FileChooser(true, true),
-        new File("songs/")
-    );
-
     streamQuality = config.new SerializedEntry<>(
         "Quality",
         "Sets the quality in which the songs are streamed",
@@ -130,7 +114,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
         60
     );
 
-    return ImmutableList.of(username, fileDir, streamQuality, cacheTime);
+    return ImmutableList.of(username, streamQuality, cacheTime);
   }
 
   @Nonnull
@@ -167,7 +151,10 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
 
   @Override
   public void initialize(@Nonnull InitStateWriter initStateWriter) throws InitializationException {
-    initStateWriter.state("Initializing...");
+    initStateWriter.state("Obtaining storage dir");
+    fileDir = new File(fileStorage.forPlugin(this, true), "songs/");
+
+    initStateWriter.state("Creating cache");
     cachedSongs = CacheBuilder.newBuilder()
         .expireAfterAccess(cacheTime.get(), TimeUnit.MINUTES)
         .initialCapacity(256)
@@ -180,7 +167,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
           }
         });
 
-    File songDir = fileDir.get();
+    File songDir = fileDir;
     if (!songDir.exists()) {
       if (!songDir.mkdir()) {
         throw new InitializationException("Unable to create song directory");
@@ -265,7 +252,7 @@ public class GPlayMusicProvider extends GPlayMusicProviderBase {
   @Nonnull
   @Override
   public Resource loadSong(@Nonnull Song song) throws SongLoadingException {
-    String songDir = fileDir.get().getPath();
+    String songDir = fileDir.getPath();
     try {
       Track track = getAPI().getTrackApi().getTrack(song.getId());
       Path path = Paths.get(songDir, song.getId() + ".mp3");

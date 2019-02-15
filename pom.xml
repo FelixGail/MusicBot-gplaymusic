@@ -19,7 +19,7 @@
 
         <java.version>1.8</java.version>
         <junit.version>4.12</junit.version>
-        <musicbot.version>0.16.2</musicbot.version>
+        <musicbot.version>0.17.1</musicbot.version>
     </properties>
     <dependencies>
         <dependency>
