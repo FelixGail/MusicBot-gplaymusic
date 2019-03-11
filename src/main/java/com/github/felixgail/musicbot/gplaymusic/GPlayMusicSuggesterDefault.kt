@@ -12,7 +12,7 @@ import net.bjoernpetersen.musicbot.spi.plugin.management.InitStateWriter
 import java.io.IOException
 import java.util.*
 
-class GPlayMusicSuggesterDefault : GPlayMusicSuggesterBase() {
+class GPlayMusicSuggesterDefault : GPlayMusicSuggester() {
 
     private var radioStation: Station? = null
     private var lastSuggested: Song? = null

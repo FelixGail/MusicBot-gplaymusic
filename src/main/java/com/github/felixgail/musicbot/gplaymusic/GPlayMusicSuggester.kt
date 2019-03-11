@@ -9,10 +9,10 @@ import java.io.IOException
 import javax.inject.Inject
 
 @IdBase(displayName = "GPlayMusic last played station")
-abstract class GPlayMusicSuggesterBase : Suggester {
+abstract class GPlayMusicSuggester : Suggester {
 
     @Inject
-    protected lateinit var provider: GPlayMusicProviderBase
+    protected lateinit var provider: GPlayMusicProvider
 
     protected val logger = LoggerFactory.getLogger(javaClass)!!
 
