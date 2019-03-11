@@ -8,13 +8,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import net.bjoernpetersen.musicbot.api.config.Config
 import net.bjoernpetersen.musicbot.api.config.TextBox
+import net.bjoernpetersen.musicbot.api.player.QueueEntry
 import net.bjoernpetersen.musicbot.api.player.Song
 import net.bjoernpetersen.musicbot.api.player.SongEntry
 import net.bjoernpetersen.musicbot.spi.plugin.InitializationException
 import net.bjoernpetersen.musicbot.spi.plugin.NoSuchSongException
 import net.bjoernpetersen.musicbot.spi.plugin.management.InitStateWriter
 import java.io.IOException
-import java.util.*
+import java.util.LinkedList
 import kotlin.coroutines.CoroutineContext
 
 class GPlayMusicSuggesterDefault : GPlayMusicSuggester(), CoroutineScope {
@@ -126,7 +127,7 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester(), CoroutineScope {
         withContext(coroutineContext) {
             val song = songEntry.song
             handleRecentlyPlayed(song)
-            try {
+            if (songEntry is QueueEntry) try {
                 createStation(song)
             } catch (e: IOException) {
                 logger.error(e) { "Error while creating station on key ${song.id}. Using old station." }
