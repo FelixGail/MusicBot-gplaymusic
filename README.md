@@ -12,7 +12,7 @@ You can find the latest successful build of this plugin
 [here](https://FelixGail.github.io/CircleCIArtifactProvider/index.html?vcs-type=github&user=FelixGail&project=JMusicBot-gplaymusic&build=latest&token=052163ee37b6ca7653f730659f5980b8ad271138&branch=develop&filter=successful&path=root/app/target/musicbot-gplaymusic.jar)_.
 
 #### Installation
-1. Install a version of the JMusicBot as well as an Mp3PlaybackFactory
+1. Install a version of the MusicBot as well as an Mp3PlaybackFactory
 (e.g. [MusicBot-mpv](https://github.com/BjoernPetersen/MusicBot-mpv))
 2. Copy this [project](https://FelixGail.github.io/CircleCIArtifactProvider/index.html?vcs-type=github&user=FelixGail&project=JMusicBot-gplaymusic&build=latest&token=052163ee37b6ca7653f730659f5980b8ad271138&branch=master&filter=successful&path=root/app/target/musicbot-gplaymusic.jar)
 into the plugins folder.
