@@ -1,1 +1,1 @@
-rootProject.name = "musicbot.gplaymusic"
+rootProject.name = "musicbot-gplaymusic"

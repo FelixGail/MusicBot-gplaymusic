@@ -2,31 +2,32 @@ version: 2
 jobs:
   build:
     docker:
-    - image: maven:3.5.0-jdk-8
-    working_directory: ~/app
+      - image: openjdk:8-jdk
     steps:
-    - checkout
+      - checkout
 
-    - restore_cache:
-        keys:
-        - v1-{{ checksum "pom.xml" }}
-        - v1-
-        paths:
-        - ~/.m2
+      - restore_cache:
+          keys:
+            - v2-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}-{{ checksum "buildSrc/src/main/kotlin/Lib.kt" }}
+            - v2-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}
+            - v2-{{ checksum "build.gradle.kts" }}
+            - v2-
 
-    - run:
-        name: Building Project
-        command: mvn clean package
+      - run: ./gradlew dependencies
 
-    - run:
-        name: Renaming and moving jar-file
-        command: |
-          mv target/*jar-with-dependencies.jar target/musicbot-gplaymusic.jar
+      - save_cache:
+          paths:
+            - ~/.gradle
+            - .gradle
+          key: v2-{{ checksum "build.gradle.kts" }}-{{ checksum "buildSrc/src/main/kotlin/Plugin.kt" }}-{{ checksum "buildSrc/src/main/kotlin/Lib.kt" }}
 
-    - store-artifacts:
-        path: target/musicbot-gplaymusic.jar
+      - run:
+          name: Build jar-file
+          command: ./gradlew shadowJar
 
-    - save_cache:
-            key: v1-{{ checksum "pom.xml" }}
-            paths:
-            - ~/.m2
+      - run:
+          name: Renaming and moving jar-file
+          command: mv build/libs/*-all.jar build/musicbot-gplaymusic.jar
+
+      - store-artifacts:
+          path: build/musicbot-gplaymusic.jar
