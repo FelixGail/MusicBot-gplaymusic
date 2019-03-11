@@ -7,9 +7,22 @@ import com.github.felixgail.gplaymusic.util.TokenProvider
 import com.google.common.cache.CacheBuilder
 import com.google.common.cache.CacheLoader
 import com.google.common.cache.LoadingCache
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
-import net.bjoernpetersen.musicbot.api.config.*
+import net.bjoernpetersen.musicbot.api.config.ChoiceBox
+import net.bjoernpetersen.musicbot.api.config.Config
+import net.bjoernpetersen.musicbot.api.config.IntSerializer
+import net.bjoernpetersen.musicbot.api.config.NonnullConfigChecker
+import net.bjoernpetersen.musicbot.api.config.NumberBox
+import net.bjoernpetersen.musicbot.api.config.PasswordBox
+import net.bjoernpetersen.musicbot.api.config.TextBox
 import net.bjoernpetersen.musicbot.api.loader.FileResource
 import net.bjoernpetersen.musicbot.api.loader.SongLoadingException
 import net.bjoernpetersen.musicbot.api.player.Song
@@ -31,7 +44,8 @@ import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
-import kotlin.streams.toList
+import kotlin.math.max
+import kotlin.math.min
 
 class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
 
@@ -202,10 +216,13 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
     override suspend fun search(query: String, offset: Int): List<Song> {
         return withContext(coroutineContext) {
             try {
-                api.trackApi.search(query, 30).stream()
+                // We retrieve up to two pages for now and limit them to a size of 30 each
+                val max = if (offset < 20) 30 else 60
+                val result = api.trackApi.search(query, max).asSequence()
                     .map { getSongFromTrack(it) }
-                    .peek { song -> cachedSongs.put(song.id, CompletableDeferred(song)) }
+                    .onEach { song -> cachedSongs.put(song.id, CompletableDeferred(song)) }
                     .toList()
+                result.subList(min(offset, max(0, result.size - 1)), min(offset + 30, result.size))
             } catch (e: IOException) {
                 if (e is NetworkException && e.code == HttpURLConnection.HTTP_UNAUTHORIZED) {
                     if (generateNewToken()) {
