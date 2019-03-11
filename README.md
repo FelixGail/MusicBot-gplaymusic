@@ -1,9 +1,9 @@
-# JMusicBot-gplaymusic
+# MusicBot-gplaymusic
 A GooglePlayMusic provider for the MusicBot (https://github.com/BjoernPetersen/MusicBot)
 
 #### Requirements
 In order to be able to use this plugin, you will need an active AllAccess subscription to Google's 
-music streaming service [GooglePlayMusic](play.google.com/music/listen).
+music streaming service [GooglePlayMusic](https://play.google.com/music/listen).
 
 #### Download
 You can find the latest successful build of this plugin
