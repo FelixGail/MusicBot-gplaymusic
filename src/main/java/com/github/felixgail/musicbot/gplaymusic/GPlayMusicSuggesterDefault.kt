@@ -2,6 +2,10 @@ package com.github.felixgail.musicbot.gplaymusic
 
 import com.github.felixgail.gplaymusic.model.Station
 import com.github.felixgail.gplaymusic.model.snippets.StationSeed
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import net.bjoernpetersen.musicbot.api.config.Config
 import net.bjoernpetersen.musicbot.api.config.TextBox
 import net.bjoernpetersen.musicbot.api.player.Song
@@ -11,8 +15,14 @@ import net.bjoernpetersen.musicbot.spi.plugin.NoSuchSongException
 import net.bjoernpetersen.musicbot.spi.plugin.management.InitStateWriter
 import java.io.IOException
 import java.util.*
+import kotlin.coroutines.CoroutineContext
 
-class GPlayMusicSuggesterDefault : GPlayMusicSuggester() {
+class GPlayMusicSuggesterDefault : GPlayMusicSuggester(), CoroutineScope {
+
+    private val job = Job()
+    override val coroutineContext: CoroutineContext
+        // We're using the IO dispatcher because the GPlayMusic library has blocking methods
+        get() = Dispatchers.IO + job
 
     private var radioStation: Station? = null
     private var lastSuggested: Song? = null
@@ -32,7 +42,7 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester() {
         get() = baseSong?.title?.let { "Based on $it" } ?: name
 
     @Throws(InitializationException::class)
-    override fun initialize(initStateWriter: InitStateWriter) {
+    override suspend fun initialize(initStateWriter: InitStateWriter) {
         recentlyPlayedSongs = LinkedList()
         suggestions = LinkedList()
 
@@ -43,15 +53,16 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester() {
             throw InitializationException("Could not find fallback song", e)
         }
 
-        try {
-            createStation(baseSong!!)
-        } catch (e: IOException) {
-            throw InitializationException("Unable to create Station on song " + baseSong!!, e)
+        withContext(coroutineContext) {
+            try {
+                createStation(baseSong!!)
+            } catch (e: IOException) {
+                throw InitializationException("Unable to create Station on song " + baseSong!!, e)
+            }
         }
-
     }
 
-    override fun suggestNext(): Song {
+    override suspend fun suggestNext(): Song {
         val suggestionList = getNextSuggestions(1)
         val next = suggestionList.firstOrNull() ?: baseSong!!
         lastSuggested = next
@@ -59,17 +70,19 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester() {
         return next
     }
 
-    override fun getNextSuggestions(maxLength: Int): List<Song> {
-        while (suggestions.size < maxLength) {
-            try {
-                radioStation!!
-                    .getTracks(songsToTracks(recentlyPlayedSongs), true, true)
-                    .forEach { track -> suggestions.add(provider.getSongFromTrack(track)) }
-            } catch (e: IOException) {
-                logger.error("IOException while fetching for station songs", e)
+    override suspend fun getNextSuggestions(maxLength: Int): List<Song> {
+        return withContext(coroutineContext) {
+            while (suggestions.size < maxLength) {
+                try {
+                    radioStation!!
+                        .getTracks(songsToTracks(recentlyPlayedSongs), true, true)
+                        .forEach { track -> suggestions.add(provider.getSongFromTrack(track)) }
+                } catch (e: IOException) {
+                    logger.error("IOException while fetching for station songs", e)
+                }
             }
+            suggestions.subList(0, maxLength)
         }
-        return suggestions.subList(0, maxLength)
     }
 
     override fun createStateEntries(state: Config) {
@@ -100,24 +113,28 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester() {
     }
 
     @Throws(IOException::class)
-    override fun close() {
+    override suspend fun close() {
         if (radioStation != null) {
-            radioStation!!.delete()
+            withContext(coroutineContext) {
+                radioStation!!.delete()
+            }
+        }
+        job.cancel()
+    }
+
+    override suspend fun notifyPlayed(songEntry: SongEntry) {
+        withContext(coroutineContext) {
+            val song = songEntry.song
+            handleRecentlyPlayed(song)
+            try {
+                createStation(song)
+            } catch (e: IOException) {
+                logger.error(e) { "Error while creating station on key ${song.id}. Using old station." }
+            }
         }
     }
 
-    override fun notifyPlayed(songEntry: SongEntry) {
-        val song = songEntry.song
-        handleRecentlyPlayed(song)
-        try {
-            createStation(song)
-        } catch (e: IOException) {
-            // TODO replace with logger call
-            println("Error while creating station on key ${song.id}. Using old station.\n$e")
-        }
-    }
-
-    override fun removeSuggestion(song: Song) {
+    override suspend fun removeSuggestion(song: Song) {
         // TODO handle dislike call as such
         handleRecentlyPlayed(song)
     }

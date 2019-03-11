@@ -7,6 +7,8 @@ import com.github.felixgail.gplaymusic.util.TokenProvider
 import com.google.common.cache.CacheBuilder
 import com.google.common.cache.CacheLoader
 import com.google.common.cache.LoadingCache
+import kotlinx.coroutines.*
+import mu.KotlinLogging
 import net.bjoernpetersen.musicbot.api.config.*
 import net.bjoernpetersen.musicbot.api.loader.FileResource
 import net.bjoernpetersen.musicbot.api.loader.SongLoadingException
@@ -19,7 +21,6 @@ import net.bjoernpetersen.musicbot.spi.plugin.management.InitStateWriter
 import net.bjoernpetersen.musicbot.spi.plugin.predefined.Mp3PlaybackFactory
 import net.bjoernpetersen.musicbot.spi.plugin.predefined.UnsupportedAudioFileException
 import net.bjoernpetersen.musicbot.spi.util.FileStorage
-import org.slf4j.LoggerFactory
 import svarzee.gps.gpsoauth.AuthToken
 import svarzee.gps.gpsoauth.Gpsoauth
 import java.io.File
@@ -27,15 +28,19 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.nio.file.Files
 import java.nio.file.Paths
-import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlin.coroutines.CoroutineContext
 import kotlin.streams.toList
 
-class GPlayMusicProviderImpl : GPlayMusicProvider {
+class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
 
-    // TODO switch logger
-    private val logger = LoggerFactory.getLogger(javaClass)
+    private val logger = KotlinLogging.logger { }
+
+    private val job = Job()
+    override val coroutineContext: CoroutineContext
+        // We're using the IO dispatcher because the GPlayMusic library has blocking methods
+        get() = Dispatchers.IO + job
 
     private lateinit var username: Config.StringEntry
     private lateinit var password: Config.StringEntry
@@ -51,7 +56,7 @@ class GPlayMusicProviderImpl : GPlayMusicProvider {
     override lateinit var api: GPlayMusic
         private set
 
-    private lateinit var cachedSongs: LoadingCache<String, Song>
+    private lateinit var cachedSongs: LoadingCache<String, Deferred<Song>>
 
     override val name: String
         get() = "GPlayMusic"
@@ -123,7 +128,7 @@ class GPlayMusicProviderImpl : GPlayMusicProvider {
     }
 
     @Throws(InitializationException::class)
-    override fun initialize(initStateWriter: InitStateWriter) {
+    override suspend fun initialize(initStateWriter: InitStateWriter) {
         initStateWriter.state("Obtaining storage dir")
         fileDir = File(fileStorage.forPlugin(this, true), "songs/")
 
@@ -132,11 +137,15 @@ class GPlayMusicProviderImpl : GPlayMusicProvider {
             .expireAfterAccess(cacheTime.get()!!.toLong(), TimeUnit.MINUTES)
             .initialCapacity(256)
             .maximumSize(1024)
-            .build(object : CacheLoader<String, Song>() {
+            .build(object : CacheLoader<String, Deferred<Song>>() {
                 @Throws(Exception::class)
-                override fun load(key: String): Song {
+                override fun load(key: String): Deferred<Song> {
                     logger.debug("Adding song with id '%s' to cache.", key)
-                    return getSongFromTrack(api.trackApi.getTrack(key))
+                    return runBlocking {
+                        async(coroutineContext) {
+                            getSongFromTrack(api.trackApi.getTrack(key))
+                        }
+                    }
                 }
             })
 
@@ -148,16 +157,17 @@ class GPlayMusicProviderImpl : GPlayMusicProvider {
         }
 
         initStateWriter.state("Logging into GPlayMusic")
-        try {
-            loginToService(initStateWriter)
-        } catch (e: IOException) {
-            initStateWriter.warning("Logging into GPlayMusic failed!")
-            throw InitializationException(e)
-        } catch (e: Gpsoauth.TokenRequestFailed) {
-            initStateWriter.warning("Logging into GPlayMusic failed!")
-            throw InitializationException(e)
+        withContext(coroutineContext) {
+            try {
+                loginToService(initStateWriter)
+            } catch (e: IOException) {
+                initStateWriter.warning("Logging into GPlayMusic failed!")
+                throw InitializationException(e)
+            } catch (e: Gpsoauth.TokenRequestFailed) {
+                initStateWriter.warning("Logging into GPlayMusic failed!")
+                throw InitializationException(e)
+            }
         }
-
     }
 
     @Throws(IOException::class, Gpsoauth.TokenRequestFailed::class)
@@ -185,56 +195,62 @@ class GPlayMusicProviderImpl : GPlayMusicProvider {
         }
     }
 
-    override fun close() {}
+    override suspend fun close() {
+        job.cancel()
+    }
 
-    override fun search(query: String, offset: Int): List<Song> {
-        try {
-            return api.trackApi.search(query, 30).stream()
-                .map { this.getSongFromTrack(it) }
-                .peek { song -> cachedSongs.put(song.id, song) }
-                .toList()
-        } catch (e: IOException) {
-            if (e is NetworkException && e.code == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                if (generateNewToken()) {
-                    return search(query, offset)
+    override suspend fun search(query: String, offset: Int): List<Song> {
+        return withContext(coroutineContext) {
+            try {
+                api.trackApi.search(query, 30).stream()
+                    .map { getSongFromTrack(it) }
+                    .peek { song -> cachedSongs.put(song.id, CompletableDeferred(song)) }
+                    .toList()
+            } catch (e: IOException) {
+                if (e is NetworkException && e.code == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                    if (generateNewToken()) {
+                        search(query, offset)
+                    } else {
+                        emptyList()
+                    }
+                } else {
+                    logger.warn("Exception while searching with query '$query'", e)
+                    emptyList()
                 }
-            } else {
-                logger.warn("Exception while searching with query '$query'", e)
             }
         }
-
-        return emptyList()
     }
 
     @Throws(NoSuchSongException::class)
-    override fun lookup(id: String): Song {
+    override suspend fun lookup(id: String): Song {
         try {
-            return cachedSongs.get(id)
-        } catch (e: ExecutionException) {
-            throw NoSuchSongException(id, GPlayMusicProvider::class.java, e)
+            return cachedSongs.get(id).await()
+        } catch (e: Exception) {
+            throw NoSuchSongException(id, GPlayMusicProvider::class, e)
         }
-
     }
 
     @Throws(SongLoadingException::class)
-    override fun loadSong(song: Song): Resource {
-        val songDir = fileDir!!.path
-        try {
-            val track = api.trackApi.getTrack(song.id)
-            val path = Paths.get(songDir, song.id + ".mp3")
-            val tmpPath = Paths.get(songDir, song.id + ".mp3.tmp")
-            if (!Files.exists(path)) {
-                track.download(streamQuality.get(), tmpPath)
-                Files.move(tmpPath, path)
+    override suspend fun loadSong(song: Song): Resource {
+        return withContext(coroutineContext) {
+            val songDir = fileDir!!.path
+            try {
+                val track = api.trackApi.getTrack(song.id)
+                val path = Paths.get(songDir, song.id + ".mp3")
+                val tmpPath = Paths.get(songDir, song.id + ".mp3.tmp")
+                if (!Files.exists(path)) {
+                    track.download(streamQuality.get(), tmpPath)
+                    Files.move(tmpPath, path)
+                }
+                FileResource(path.toFile())
+            } catch (e: IOException) {
+                throw SongLoadingException(e)
             }
-            return FileResource(path.toFile())
-        } catch (e: IOException) {
-            throw SongLoadingException(e)
         }
     }
 
     @Throws(IOException::class)
-    override fun supplyPlayback(song: Song, resource: Resource): Playback {
+    override suspend fun supplyPlayback(song: Song, resource: Resource): Playback {
         val fileResource = resource as FileResource
         try {
             return playbackFactory.createPlayback(fileResource.file)
