@@ -1,6 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
+    id("com.github.ben-manes.versions") version Plugin.VERSIONS
     kotlin("jvm") version Plugin.KOTLIN
     id("com.github.johnrengelman.shadow") version Plugin.SHADOW_JAR
 }
@@ -27,7 +28,9 @@ dependencies {
         group = "com.github.bjoernpetersen",
         name = "musicbot",
         version = Lib.MUSICBOT
-    )
+    ) {
+        isChanging = Lib.MUSICBOT.contains("SNAPSHOT")
+    }
     implementation(
         group = "com.github.felixgail",
         name = "gplaymusic",
