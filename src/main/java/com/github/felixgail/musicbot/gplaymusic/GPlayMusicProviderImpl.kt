@@ -5,17 +5,15 @@ import com.github.felixgail.gplaymusic.exceptions.NetworkException
 import com.github.felixgail.gplaymusic.model.enums.StreamQuality
 import com.github.felixgail.gplaymusic.util.TokenProvider
 import com.google.common.cache.CacheBuilder
-import com.google.common.cache.CacheLoader
 import com.google.common.cache.LoadingCache
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
+import net.bjoernpetersen.musicbot.api.cache.AsyncLoader
 import net.bjoernpetersen.musicbot.api.config.ChoiceBox
 import net.bjoernpetersen.musicbot.api.config.Config
 import net.bjoernpetersen.musicbot.api.config.IntSerializer
@@ -151,17 +149,7 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
             .expireAfterAccess(cacheTime.get()!!.toLong(), TimeUnit.MINUTES)
             .initialCapacity(256)
             .maximumSize(1024)
-            .build(object : CacheLoader<String, Deferred<Song>>() {
-                @Throws(Exception::class)
-                override fun load(key: String): Deferred<Song> {
-                    logger.debug("Adding song with id '%s' to cache.", key)
-                    return runBlocking {
-                        async(coroutineContext) {
-                            getSongFromTrack(api.trackApi.getTrack(key))
-                        }
-                    }
-                }
-            })
+            .build(AsyncLoader(this) { getSongFromTrack(api.trackApi.getTrack(it)) })
 
         val songDir = fileDir!!
         if (!songDir.exists()) {
