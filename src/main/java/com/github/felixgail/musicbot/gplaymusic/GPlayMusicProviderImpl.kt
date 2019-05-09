@@ -2,10 +2,12 @@ package com.github.felixgail.musicbot.gplaymusic
 
 import com.github.felixgail.gplaymusic.api.GPlayMusic
 import com.github.felixgail.gplaymusic.exceptions.NetworkException
+import com.github.felixgail.gplaymusic.model.Track
 import com.github.felixgail.gplaymusic.model.enums.StreamQuality
 import com.github.felixgail.gplaymusic.util.TokenProvider
 import com.google.common.cache.CacheBuilder
 import com.google.common.cache.LoadingCache
+import com.google.inject.Inject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -24,14 +26,19 @@ import net.bjoernpetersen.musicbot.api.config.TextBox
 import net.bjoernpetersen.musicbot.api.loader.FileResource
 import net.bjoernpetersen.musicbot.api.loader.SongLoadingException
 import net.bjoernpetersen.musicbot.api.player.Song
+import net.bjoernpetersen.musicbot.api.plugin.NamedPlugin
 import net.bjoernpetersen.musicbot.spi.loader.Resource
 import net.bjoernpetersen.musicbot.spi.plugin.InitializationException
 import net.bjoernpetersen.musicbot.spi.plugin.NoSuchSongException
 import net.bjoernpetersen.musicbot.spi.plugin.Playback
+import net.bjoernpetersen.musicbot.spi.plugin.Plugin
+import net.bjoernpetersen.musicbot.spi.plugin.UserFacing
+import net.bjoernpetersen.musicbot.spi.plugin.id
 import net.bjoernpetersen.musicbot.spi.plugin.management.InitStateWriter
 import net.bjoernpetersen.musicbot.spi.plugin.predefined.Mp3PlaybackFactory
 import net.bjoernpetersen.musicbot.spi.plugin.predefined.UnsupportedAudioFileException
 import net.bjoernpetersen.musicbot.spi.util.FileStorage
+import net.bjoernpetersen.musicbot.youtube.provider.YouTubeProvider
 import svarzee.gps.gpsoauth.AuthToken
 import svarzee.gps.gpsoauth.Gpsoauth
 import java.io.File
@@ -40,7 +47,6 @@ import java.net.HttpURLConnection
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
-import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 import kotlin.math.min
@@ -60,6 +66,7 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
     private lateinit var token: Config.StringEntry
     private lateinit var streamQuality: Config.SerializedEntry<StreamQuality>
     private lateinit var cacheTime: Config.SerializedEntry<Int>
+    private lateinit var showVideos: Config.BooleanEntry
     @Inject
     private lateinit var fileStorage: FileStorage
     private var fileDir: File? = null
@@ -67,6 +74,9 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
     private lateinit var playbackFactory: Mp3PlaybackFactory
     override lateinit var api: GPlayMusic
         private set
+
+    @Inject(optional = true)
+    private var youtubeProvider: YouTubeProvider? = null
 
     private lateinit var cachedSongs: LoadingCache<String, Deferred<Song>>
 
@@ -78,6 +88,8 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
 
     override val subject: String
         get() = "Google Play Music"
+
+    private fun isYoutubeEnabled() = showVideos.get() && youtubeProvider != null
 
     override fun createStateEntries(state: Config) {}
 
@@ -111,7 +123,13 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
             60
         )
 
-        return listOf(username, streamQuality, cacheTime)
+        showVideos = config.BooleanEntry(
+            "Show YouTube videos",
+            "Use YouTube video, if available",
+            false
+        )
+
+        return listOf(username, streamQuality, cacheTime, showVideos)
     }
 
     override fun createSecretEntries(secrets: Config): List<Config.Entry<*>> {
@@ -201,6 +219,18 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
         job.cancel()
     }
 
+    override fun getSongFromTrack(track: Track): Song {
+        val song = super.getSongFromTrack(track)
+        if (isYoutubeEnabled()) {
+            val video = track.video
+            if (video.isPresent) {
+                logger.debug { "Delegating song to YouTube: ${song.title} " }
+                return song.copy(id = video.get().id, provider = youtubeProvider!!.toNamedPlugin())
+            }
+        }
+        return song
+    }
+
     override suspend fun search(query: String, offset: Int): List<Song> {
         return withContext(coroutineContext) {
             try {
@@ -279,11 +309,17 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
                     e
                 )
             } catch (e: IOException) {
-                logger.error("Exception while trying to generate new token. Unable to authenticate client.", e)
+                logger.error(
+                    "Exception while trying to generate new token. Unable to authenticate client.",
+                    e
+                )
             }
 
         } else {
-            logger.info("Token request on cooldown. Please wait %d seconds.", diffLastRequest * 1000)
+            logger.info(
+                "Token request on cooldown. Please wait %d seconds.",
+                diffLastRequest * 1000
+            )
         }
         return false
     }
@@ -291,4 +327,11 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
     private companion object {
         const val tokenCooldownMillis: Long = 60000
     }
+}
+
+private fun <T> T.toNamedPlugin(): NamedPlugin<T> where T : Plugin, T : UserFacing {
+    return NamedPlugin(
+        id.qualifiedName!!,
+        subject
+    )
 }
