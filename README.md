@@ -7,14 +7,14 @@ music streaming service [GooglePlayMusic](https://play.google.com/music/listen).
 
 #### Download
 You can find the latest successful build of this plugin
-[here](https://FelixGail.github.io/CircleCIArtifactProvider/index.html?vcs-type=github&user=FelixGail&project=JMusicBot-gplaymusic&build=latest&token=052163ee37b6ca7653f730659f5980b8ad271138&branch=master&filter=successful&path=dist/musicbot-gplaymusic.jar),<br>
+[here](https://FelixGail.github.io/CircleCIArtifactProvider/index.html?vcs-type=github&user=FelixGail&project=MusicBot-gplaymusic&build=latest&token=052163ee37b6ca7653f730659f5980b8ad271138&branch=master&filter=successful&path=dist/musicbot-gplaymusic.jar),<br>
  - _or the latest **development** build
-[here](https://FelixGail.github.io/CircleCIArtifactProvider/index.html?vcs-type=github&user=FelixGail&project=JMusicBot-gplaymusic&build=latest&token=052163ee37b6ca7653f730659f5980b8ad271138&branch=develop&filter=successful&path=dist/musicbot-gplaymusic.jar)_.
+[here](https://FelixGail.github.io/CircleCIArtifactProvider/index.html?vcs-type=github&user=FelixGail&project=MusicBot-gplaymusic&build=latest&token=052163ee37b6ca7653f730659f5980b8ad271138&branch=develop&filter=successful&path=dist/musicbot-gplaymusic.jar)_.
 
 #### Installation
 1. Install a version of the MusicBot as well as an Mp3PlaybackFactory
 (e.g. [MusicBot-mpv](https://github.com/BjoernPetersen/MusicBot-mpv))
-2. Copy this [project](https://FelixGail.github.io/CircleCIArtifactProvider/index.html?vcs-type=github&user=FelixGail&project=JMusicBot-gplaymusic&build=latest&token=052163ee37b6ca7653f730659f5980b8ad271138&branch=master&filter=successful&path=dist/musicbot-gplaymusic.jar)
+2. Copy this [project](https://FelixGail.github.io/CircleCIArtifactProvider/index.html?vcs-type=github&user=FelixGail&project=MusicBot-gplaymusic&build=latest&token=052163ee37b6ca7653f730659f5980b8ad271138&branch=master&filter=successful&path=dist/musicbot-gplaymusic.jar)
 into the plugins folder.
 3. Start the MusicBot and configure this plugin:
     1. **Username:** Your Google username or email.
