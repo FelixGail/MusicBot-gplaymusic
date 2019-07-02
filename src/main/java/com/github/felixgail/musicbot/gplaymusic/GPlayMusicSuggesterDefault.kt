@@ -4,26 +4,22 @@ import com.github.felixgail.gplaymusic.model.Station
 import com.github.felixgail.gplaymusic.model.snippets.StationSeed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import net.bjoernpetersen.musicbot.api.config.Config
 import net.bjoernpetersen.musicbot.api.config.TextBox
 import net.bjoernpetersen.musicbot.api.player.QueueEntry
 import net.bjoernpetersen.musicbot.api.player.Song
 import net.bjoernpetersen.musicbot.api.player.SongEntry
+import net.bjoernpetersen.musicbot.api.plugin.PluginScope
 import net.bjoernpetersen.musicbot.spi.plugin.InitializationException
 import net.bjoernpetersen.musicbot.spi.plugin.NoSuchSongException
 import net.bjoernpetersen.musicbot.spi.plugin.management.InitStateWriter
 import java.io.IOException
 import java.util.LinkedList
-import kotlin.coroutines.CoroutineContext
 
-class GPlayMusicSuggesterDefault : GPlayMusicSuggester(), CoroutineScope {
-
-    private val job = Job()
-    override val coroutineContext: CoroutineContext
-        // We're using the IO dispatcher because the GPlayMusic library has blocking methods
-        get() = Dispatchers.IO + job
+class GPlayMusicSuggesterDefault : GPlayMusicSuggester(),
+    CoroutineScope by PluginScope(Dispatchers.IO) {
 
     private var radioStation: Station? = null
     private var lastSuggested: Song? = null
@@ -113,6 +109,10 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester(), CoroutineScope {
         return emptyList()
     }
 
+    private fun cancelScope() {
+        cancel()
+    }
+
     @Throws(IOException::class)
     override suspend fun close() {
         if (radioStation != null) {
@@ -120,7 +120,7 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester(), CoroutineScope {
                 radioStation!!.delete()
             }
         }
-        job.cancel()
+        cancelScope()
     }
 
     override suspend fun notifyPlayed(songEntry: SongEntry) {

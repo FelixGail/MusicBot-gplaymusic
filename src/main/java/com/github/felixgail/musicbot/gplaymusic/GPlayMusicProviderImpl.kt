@@ -12,7 +12,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import net.bjoernpetersen.musicbot.api.cache.AsyncLoader
@@ -27,6 +27,7 @@ import net.bjoernpetersen.musicbot.api.loader.FileResource
 import net.bjoernpetersen.musicbot.api.loader.SongLoadingException
 import net.bjoernpetersen.musicbot.api.player.Song
 import net.bjoernpetersen.musicbot.api.plugin.NamedPlugin
+import net.bjoernpetersen.musicbot.api.plugin.PluginScope
 import net.bjoernpetersen.musicbot.spi.loader.Resource
 import net.bjoernpetersen.musicbot.spi.plugin.InitializationException
 import net.bjoernpetersen.musicbot.spi.plugin.NoSuchSongException
@@ -47,18 +48,12 @@ import java.net.HttpURLConnection
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 import kotlin.math.min
 
-class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
+class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope by PluginScope(Dispatchers.IO) {
 
     private val logger = KotlinLogging.logger { }
-
-    private val job = Job()
-    override val coroutineContext: CoroutineContext
-        // We're using the IO dispatcher because the GPlayMusic library has blocking methods
-        get() = Dispatchers.IO + job
 
     private lateinit var username: Config.StringEntry
     private lateinit var password: Config.StringEntry
@@ -215,8 +210,12 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
         }
     }
 
+    private fun cancelScope() {
+        cancel()
+    }
+
     override suspend fun close() {
-        job.cancel()
+        cancelScope()
     }
 
     override fun getSongFromTrack(track: Track): Song {
