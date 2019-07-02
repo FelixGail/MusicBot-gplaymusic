@@ -99,7 +99,7 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope by PluginScope
         streamQuality = config.SerializedEntry(
             "Quality",
             "Sets the quality in which the songs are streamed",
-            StreamQualitySerializer(),
+            StreamQualitySerializer,
             { null },
             ChoiceBox(
                 { it.name },
