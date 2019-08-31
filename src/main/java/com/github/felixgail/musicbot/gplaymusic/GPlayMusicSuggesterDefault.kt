@@ -7,7 +7,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import net.bjoernpetersen.musicbot.api.config.Config
+import net.bjoernpetersen.musicbot.api.config.ExperimentalConfigDsl
 import net.bjoernpetersen.musicbot.api.config.TextBox
+import net.bjoernpetersen.musicbot.api.config.string
 import net.bjoernpetersen.musicbot.api.player.QueueEntry
 import net.bjoernpetersen.musicbot.api.player.Song
 import net.bjoernpetersen.musicbot.api.player.SongEntry
@@ -18,6 +20,7 @@ import net.bjoernpetersen.musicbot.spi.plugin.management.InitStateWriter
 import java.io.IOException
 import java.util.LinkedList
 
+@UseExperimental(ExperimentalConfigDsl::class)
 class GPlayMusicSuggesterDefault : GPlayMusicSuggester(),
     CoroutineScope by PluginScope(Dispatchers.IO) {
 
@@ -83,34 +86,29 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester(),
     }
 
     override fun createStateEntries(state: Config) {
-        baseSongEntry = state.StringEntry(
-            "Base",
-            "",
-            { null })
+        baseSongEntry = state.string("Base") {
+            description = ""
+            check { null }
+        }
     }
 
     override fun createConfigEntries(config: Config): List<Config.Entry<*>> {
-        fallbackSongEntry = config.StringEntry(
-            "Fallback",
-            "ID of a song to build the radio upon",
-            {
+        fallbackSongEntry = config.string("Fallback") {
+            description = "ID of a song to build the radio upon"
+            uiNode = TextBox
+            default("Tj6fhurtstzgdpvfm4xv6i5cei4")
+            check {
                 if (it == null || !it.startsWith("T")) {
                     "Song IDs must start with 'T'"
                 } else null
-            },
-            TextBox,
-            "Tj6fhurtstzgdpvfm4xv6i5cei4"
-        )
+            }
+        }
 
         return listOf(fallbackSongEntry)
     }
 
     override fun createSecretEntries(secrets: Config): List<Config.Entry<*>> {
         return emptyList()
-    }
-
-    private fun cancelScope() {
-        cancel()
     }
 
     @Throws(IOException::class)
@@ -120,7 +118,7 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester(),
                 radioStation!!.delete()
             }
         }
-        cancelScope()
+        run { cancel() }
     }
 
     override suspend fun notifyPlayed(songEntry: SongEntry) {
