@@ -22,9 +22,11 @@ import net.bjoernpetersen.musicbot.api.config.IntSerializer
 import net.bjoernpetersen.musicbot.api.config.NonnullConfigChecker
 import net.bjoernpetersen.musicbot.api.config.NumberBox
 import net.bjoernpetersen.musicbot.api.config.PasswordBox
+import net.bjoernpetersen.musicbot.api.config.SerializationException
 import net.bjoernpetersen.musicbot.api.config.TextBox
 import net.bjoernpetersen.musicbot.api.config.boolean
 import net.bjoernpetersen.musicbot.api.config.choiceBox
+import net.bjoernpetersen.musicbot.api.config.serialization
 import net.bjoernpetersen.musicbot.api.config.serialized
 import net.bjoernpetersen.musicbot.api.config.string
 import net.bjoernpetersen.musicbot.api.loader.FileResource
@@ -102,8 +104,17 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope by PluginScope
 
         streamQuality = config.serialized("Quality") {
             description = "Sets the quality in which the songs are streamed"
-            serializer = StreamQualitySerializer
             check { null }
+            serialization {
+                serialize { it.name }
+                deserialize {
+                    try {
+                        StreamQuality.valueOf(it)
+                    } catch (e: IllegalArgumentException) {
+                        throw SerializationException()
+                    }
+                }
+            }
             choiceBox {
                 describe { it.name }
                 refresh { StreamQuality.values().toList() }
