@@ -3,6 +3,7 @@ package com.github.felixgail.musicbot.gplaymusic
 import com.github.felixgail.gplaymusic.api.GPlayMusic
 import com.github.felixgail.gplaymusic.model.Track
 import net.bjoernpetersen.musicbot.api.player.Song
+import net.bjoernpetersen.musicbot.api.player.song
 import net.bjoernpetersen.musicbot.api.plugin.IdBase
 import net.bjoernpetersen.musicbot.spi.plugin.Provider
 
@@ -25,7 +26,10 @@ interface GPlayMusicProvider : Provider {
     fun getSongFromInfo(
         id: String, title: String,
         description: String, duration: Int, albumArtUrl: String?
-    ): Song {
-        return Song(id, this, title, description, duration, albumArtUrl)
+    ): Song = song(id) {
+        this.title = title
+        this.description = description
+        this.duration = duration
+        albumArtUrl?.let(::serveRemoteImage)
     }
 }

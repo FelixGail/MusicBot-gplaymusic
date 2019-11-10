@@ -12,21 +12,28 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import net.bjoernpetersen.musicbot.api.cache.AsyncLoader
-import net.bjoernpetersen.musicbot.api.config.ChoiceBox
 import net.bjoernpetersen.musicbot.api.config.Config
+import net.bjoernpetersen.musicbot.api.config.ExperimentalConfigDsl
 import net.bjoernpetersen.musicbot.api.config.IntSerializer
 import net.bjoernpetersen.musicbot.api.config.NonnullConfigChecker
 import net.bjoernpetersen.musicbot.api.config.NumberBox
 import net.bjoernpetersen.musicbot.api.config.PasswordBox
+import net.bjoernpetersen.musicbot.api.config.SerializationException
 import net.bjoernpetersen.musicbot.api.config.TextBox
+import net.bjoernpetersen.musicbot.api.config.boolean
+import net.bjoernpetersen.musicbot.api.config.choiceBox
+import net.bjoernpetersen.musicbot.api.config.serialization
+import net.bjoernpetersen.musicbot.api.config.serialized
+import net.bjoernpetersen.musicbot.api.config.string
 import net.bjoernpetersen.musicbot.api.loader.FileResource
 import net.bjoernpetersen.musicbot.api.loader.SongLoadingException
 import net.bjoernpetersen.musicbot.api.player.Song
 import net.bjoernpetersen.musicbot.api.plugin.NamedPlugin
+import net.bjoernpetersen.musicbot.api.plugin.PluginScope
 import net.bjoernpetersen.musicbot.spi.loader.Resource
 import net.bjoernpetersen.musicbot.spi.plugin.InitializationException
 import net.bjoernpetersen.musicbot.spi.plugin.NoSuchSongException
@@ -47,18 +54,13 @@ import java.net.HttpURLConnection
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 import kotlin.math.min
 
-class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
+@UseExperimental(ExperimentalConfigDsl::class)
+class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope by PluginScope(Dispatchers.IO) {
 
     private val logger = KotlinLogging.logger { }
-
-    private val job = Job()
-    override val coroutineContext: CoroutineContext
-        // We're using the IO dispatcher because the GPlayMusic library has blocking methods
-        get() = Dispatchers.IO + job
 
     private lateinit var username: Config.StringEntry
     private lateinit var password: Config.StringEntry
@@ -94,65 +96,66 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
     override fun createStateEntries(state: Config) {}
 
     override fun createConfigEntries(config: Config): List<Config.Entry<*>> {
-        username = config.StringEntry(
-            "Username",
-            "Username or Email of your Google account with AllAccess subscription",
-            NonnullConfigChecker,
-            TextBox
-        )
+        username = config.string("Username") {
+            description = "Username or Email of your Google account with AllAccess subscription"
+            check(NonnullConfigChecker)
+            uiNode = TextBox
+        }
 
-        streamQuality = config.SerializedEntry(
-            "Quality",
-            "Sets the quality in which the songs are streamed",
-            StreamQualitySerializer(),
-            { null },
-            ChoiceBox(
-                { it.name },
-                { StreamQuality.values().toList() },
-                false
-            ),
-            StreamQuality.HIGH
-        )
+        streamQuality = config.serialized("Quality") {
+            description = "Sets the quality in which the songs are streamed"
+            check { null }
+            serialization {
+                serialize { it.name }
+                deserialize {
+                    try {
+                        StreamQuality.valueOf(it)
+                    } catch (e: IllegalArgumentException) {
+                        throw SerializationException()
+                    }
+                }
+            }
+            choiceBox {
+                describe { it.name }
+                refresh { StreamQuality.values().toList() }
+            }
+            default(StreamQuality.HIGH)
+        }
 
-        cacheTime = config.SerializedEntry(
-            "Cache Time",
-            "Duration in Minutes until cached songs will be deleted.",
-            IntSerializer,
-            { null },
-            NumberBox(1, 3600),
-            60
-        )
+        cacheTime = config.serialized("Cache Time") {
+            description = "Duration in Minutes until cached songs will be deleted."
+            serializer = IntSerializer
+            check { null }
+            uiNode = NumberBox(1, 3600)
+            default(60)
+        }
 
-        showVideos = config.BooleanEntry(
-            "Show YouTube videos",
-            "Use YouTube video, if available",
-            false
-        )
+        showVideos = config.boolean("Show YouTube videos") {
+            description = "Use YouTube video, if available"
+            default = false
+        }
 
         return listOf(username, streamQuality, cacheTime, showVideos)
     }
 
     override fun createSecretEntries(secrets: Config): List<Config.Entry<*>> {
-        password = secrets.StringEntry(
-            "Password",
-            "Password/App password of your Google account",
-            NonnullConfigChecker,
-            PasswordBox
-        )
+        password = secrets.string("Password") {
+            description = "Password/App password of your Google account"
+            check(NonnullConfigChecker)
+            uiNode = PasswordBox
+        }
 
-        androidID = secrets.StringEntry(
-            "Android ID",
-            "IMEI or GoogleID of your smartphone with GooglePlayMusic installed",
-            NonnullConfigChecker,
-            TextBox
-        )
+        androidID = secrets.string("Android ID") {
+            description = "IMEI or GoogleID of your smartphone with GooglePlayMusic installed"
+            check(NonnullConfigChecker)
+            uiNode = TextBox
+        }
 
-        token = secrets.StringEntry(
-            "Token",
-            "Authtoken",
-            NonnullConfigChecker,
-            TextBox
-        )
+        token = secrets.string("Token") {
+            description = "Authtoken"
+            check(NonnullConfigChecker)
+            uiNode = TextBox
+        }
 
         return listOf(password, androidID, token)
     }
@@ -216,7 +219,7 @@ class GPlayMusicProviderImpl : GPlayMusicProvider, CoroutineScope {
     }
 
     override suspend fun close() {
-        job.cancel()
+        run { cancel() }
     }
 
     override fun getSongFromTrack(track: Track): Song {

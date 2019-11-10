@@ -10,15 +10,16 @@ group = "com.github.felixgail"
 version = "0.3.0"
 
 tasks {
-    "compileKotlin"(KotlinCompile::class) {
-        kotlinOptions.jvmTarget = "1.8"
+    withType<KotlinCompile> {
+        kotlinOptions {
+            jvmTarget = "1.8"
+            freeCompilerArgs = listOf(
+                "-Xuse-experimental=kotlin.Experimental"
+            )
+        }
     }
 
-    "compileTestKotlin"(KotlinCompile::class) {
-        kotlinOptions.jvmTarget = "1.8"
-    }
-
-    "test"(Test::class) {
+    withType<Test> {
         useJUnitPlatform()
     }
 }
@@ -50,17 +51,17 @@ dependencies {
         name = "musicbot",
         version = Lib.MUSICBOT
     )
-    testRuntime(
-        group = "org.slf4j",
-        name = "slf4j-simple",
-        version = Lib.SLF4J
-    )
     testImplementation(
         group = "org.junit.jupiter",
         name = "junit-jupiter-api",
         version = Lib.JUNIT
     )
-    testRuntime(
+    testRuntimeOnly(
+        group = "org.slf4j",
+        name = "slf4j-simple",
+        version = Lib.SLF4J
+    )
+    testRuntimeOnly(
         group = "org.junit.jupiter",
         name = "junit-jupiter-engine",
         version = Lib.JUNIT

@@ -4,26 +4,25 @@ import com.github.felixgail.gplaymusic.model.Station
 import com.github.felixgail.gplaymusic.model.snippets.StationSeed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import net.bjoernpetersen.musicbot.api.config.Config
+import net.bjoernpetersen.musicbot.api.config.ExperimentalConfigDsl
 import net.bjoernpetersen.musicbot.api.config.TextBox
+import net.bjoernpetersen.musicbot.api.config.string
 import net.bjoernpetersen.musicbot.api.player.QueueEntry
 import net.bjoernpetersen.musicbot.api.player.Song
 import net.bjoernpetersen.musicbot.api.player.SongEntry
+import net.bjoernpetersen.musicbot.api.plugin.PluginScope
 import net.bjoernpetersen.musicbot.spi.plugin.InitializationException
 import net.bjoernpetersen.musicbot.spi.plugin.NoSuchSongException
 import net.bjoernpetersen.musicbot.spi.plugin.management.InitStateWriter
 import java.io.IOException
 import java.util.LinkedList
-import kotlin.coroutines.CoroutineContext
 
-class GPlayMusicSuggesterDefault : GPlayMusicSuggester(), CoroutineScope {
-
-    private val job = Job()
-    override val coroutineContext: CoroutineContext
-        // We're using the IO dispatcher because the GPlayMusic library has blocking methods
-        get() = Dispatchers.IO + job
+@UseExperimental(ExperimentalConfigDsl::class)
+class GPlayMusicSuggesterDefault : GPlayMusicSuggester(),
+    CoroutineScope by PluginScope(Dispatchers.IO) {
 
     private var radioStation: Station? = null
     private var lastSuggested: Song? = null
@@ -87,24 +86,23 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester(), CoroutineScope {
     }
 
     override fun createStateEntries(state: Config) {
-        baseSongEntry = state.StringEntry(
-            "Base",
-            "",
-            { null })
+        baseSongEntry = state.string("Base") {
+            description = ""
+            check { null }
+        }
     }
 
     override fun createConfigEntries(config: Config): List<Config.Entry<*>> {
-        fallbackSongEntry = config.StringEntry(
-            "Fallback",
-            "ID of a song to build the radio upon",
-            {
+        fallbackSongEntry = config.string("Fallback") {
+            description = "ID of a song to build the radio upon"
+            uiNode = TextBox
+            default("Tj6fhurtstzgdpvfm4xv6i5cei4")
+            check {
                 if (it == null || !it.startsWith("T")) {
                     "Song IDs must start with 'T'"
                 } else null
-            },
-            TextBox,
-            "Tj6fhurtstzgdpvfm4xv6i5cei4"
-        )
+            }
+        }
 
         return listOf(fallbackSongEntry)
     }
@@ -120,7 +118,7 @@ class GPlayMusicSuggesterDefault : GPlayMusicSuggester(), CoroutineScope {
                 radioStation!!.delete()
             }
         }
-        job.cancel()
+        run { cancel() }
     }
 
     override suspend fun notifyPlayed(songEntry: SongEntry) {
